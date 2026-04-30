@@ -1,0 +1,10 @@
+Primary colors:
+
+Husky Purple #32006e (PMS 2685)
+Spirit Purple #4b2e83 (PMS 266) — the most-used purple in digital
+Husky Gold #b7a57a / #e8e3d3 (web)
+Heritage Gold #85754d
+Spirit Gold #ffc700
+
+Accent colors (≤15% of any design): Accent Green #aadb1e, Accent Teal #2ad2c9, Accent Pink #e93cac, Accent Lavender #c5b4e3
+Compliant combos to favor: white on Spirit Purple, Spirit Purple on white, white on Heritage Gold, Husky Gold (#e8e3d3) on Spirit Purple.

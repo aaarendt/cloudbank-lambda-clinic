@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lambda as a Tool for Accessing Scientific Databases</title>
+  <link rel="stylesheet" href="colors_and_type.css" />
+  <script src="deck-stage.js"></script>
+
+  <script type="application/json" id="speaker-notes">
+  [
+    "Welcome to this Cloud Clinics session. I'm Anthony Arendt from the eScience Institute at the University of Washington. Today we're going to explore how AWS Lambda can be used as a lightweight, serverless tool for querying a PostgreSQL database running on an EC2 instance. This is a pattern that comes up a lot in scientific computing — you have data living on a virtual machine, and you need a clean, scalable way to expose it. By the end of this session you'll understand how Lambda fits into that architecture and how to get it working for your own research workflows.",
+    "Let me start with the motivating example. SnowEx was a NASA field campaign that ran from 2017 to 2023, sending teams into the field to measure snow depth, density, and other properties across a range of landscapes and snow types. The goal was to collect ground truth data that could be used to validate airborne and satellite remote sensing instruments. The datasets are highly structured — measurements tied to specific locations, dates, instruments, and observers — which makes them a perfect fit for a relational database. And once the data is in a database, the question becomes: how do collaborators access it? That's where Lambda comes in.",
+    "So what exactly lives in this database? We built the SnowEx database using PostgreSQL with the PostGIS spatial extension, which means we can store point locations, run geographic queries, and do spatial joins. The database contains multiple tables — one for snow depth measurements, another for density pits, another for spectral reflectance data — and they're all linked by common keys like site name, date, and geographic coordinates. Each table has its own schema with metadata fields describing the instrument, the observer, and the measurement protocol. The result is a normalized relational structure that allows researchers to query across campaigns, compare sites, and pull just the subset of data they need for their analysis. This is the kind of database that lives on an EC2 instance and needs a clean API layer on top of it, which is exactly what Lambda provides.",
+    "Now let's talk about database access. Our first implementation required users to install a command-line client on their local machine and distribute AWS credentials to everyone who needed access. This worked, but it had serious problems. Managing credentials is a security headache — you're handing out keys that, if compromised, could expose your entire database. And it put a burden on users to configure their local environment correctly. What we needed was a way to provide secure, passwordless access without distributing credentials. That's the problem Lambda solves. By putting Lambda in front of the database with API Gateway, users can query through a simple web API without ever touching credentials. The architecture diagram on the right shows how this works — API Gateway handles authentication, Lambda executes the query, and users get their data back without needing direct database access. It's a much cleaner, more secure pattern."
+  ]
+  </script>
+
+  <style>
+    :root {
+      --uw-husky-purple:   #32006e;
+      --uw-spirit-purple:  #4b2e83;
+      --uw-husky-gold-web: #e8e3d3;
+      --uw-spirit-gold:    #ffc700;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── SLIDE 01: Title ── */
+    .slide-title {
+      width: 100%;
+      height: 100%;
+      background: var(--uw-spirit-purple);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 72px 100px 72px 100px;
+      position: relative;
+    }
+
+    /* Gold top bar */
+    .slide-title::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    /* Subtle dark vignette at bottom for depth */
+    .slide-title::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 300px;
+      background: linear-gradient(to top, rgba(25,0,60,0.45) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* ── TOP ROW ── */
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* UW + eScience logos */
+    .left-logos {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+    }
+
+    .uw-w-logo {
+      height: 72px;
+      width: auto;
+      filter: brightness(0) invert(1);
+    }
+
+    .logo-divider {
+      width: 2px;
+      height: 60px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 1px;
+    }
+
+    .escience-logo {
+      height: 56px;
+      width: auto;
+      /* eScience logo is purple on white — invert to white for dark bg */
+      filter: brightness(0) invert(1);
+    }
+
+    /* Cloudbank */
+    .cloudbank-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .cb-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      white-space: nowrap;
+    }
+    .cb-logo-pill {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 4px;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+    }
+    .cb-logo-pill img {
+      height: 44px;
+      width: auto;
+      filter: brightness(0) invert(1);
+    }
+
+    /* ── CENTRE: hero title ── */
+    .hero-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 36px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .clinic-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      white-space: nowrap;
+    }
+
+    .main-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 56px;
+      line-height: 1.08;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      color: #ffffff;
+      max-width: 1600px;
+    }
+
+    .title-rule {
+      width: 110px;
+      height: 5px;
+      background: var(--uw-spirit-gold);
+      border-radius: 2px;
+    }
+
+    .subtitle {
+      font-family: 'Open Sans', sans-serif;
+      font-weight: 300;
+      font-size: 28px;
+      color: var(--uw-husky-gold-web);
+      letter-spacing: 0.02em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    /* ── BOTTOM ROW ── */
+    .presenter-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+    }
+
+    .presenter-info {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .presenter-name {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 36px;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+    }
+    .presenter-meta {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: var(--uw-husky-gold-web);
+      line-height: 1.5;
+    }
+
+    .nsf-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .nsf-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      white-space: nowrap;
+    }
+    .nsf-block img {
+      height: 100px;
+      width: auto;
+    }
+    /* Screen-reader only utility */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ── SLIDE 02: Agenda ── */
+    .slide-agenda {
+      width: 100%; height: 100%;
+      background: var(--uw-husky-purple);
+      display: grid;
+      grid-template-columns: 520px 1fr;
+      grid-template-rows: 1fr auto;
+      grid-template-areas:
+        "header list"
+        "footer footer";
+      position: relative;
+    }
+
+    /* Left gold accent bar */
+    .slide-agenda::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .agenda-header {
+      grid-area: header;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 60px 80px 80px;
+      border-right: 1px solid rgba(255,255,255,0.12);
+      gap: 20px;
+    }
+
+    .agenda-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      white-space: nowrap;
+    }
+
+    .agenda-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 52px;
+      line-height: 1.0;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .agenda-intro {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+
+    .agenda-list {
+      grid-area: list;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px 100px 60px 80px;
+    }
+
+    .agenda-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 32px;
+      padding: 18px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .agenda-list li:first-child { border-top: 1px solid rgba(255,255,255,0.08); }
+
+    .item-num {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 28px;
+      color: var(--uw-spirit-gold);
+      letter-spacing: 0.04em;
+      min-width: 48px;
+      flex-shrink: 0;
+    }
+
+    .item-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .item-label {
+      font-family: 'Open Sans', sans-serif;
+      font-weight: 600;
+      font-size: 30px;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .item-sub {
+      font-family: 'Open Sans', sans-serif;
+      font-weight: 400;
+      font-size: 24px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .agenda-footer {
+      grid-area: footer;
+      display: flex;
+      justify-content: flex-end;
+      padding: 0 48px 40px 0;
+    }
+    .footer-w {
+      height: 40px;
+      width: auto;
+      filter: brightness(0) invert(1);
+      opacity: 0.3;
+    }
+
+    /* ── SLIDE 02: Research Problem ── */
+    .slide-problem {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .problem-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .problem-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .problem-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .problem-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 32px;
+    }
+
+    .problem-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .problem-bullets li {
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 28px;
+      font-weight: 400;
+      color: #ffffff;
+      line-height: 1.35;
+    }
+    .problem-bullets li::before {
+      content: '';
+      display: block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--uw-spirit-gold);
+      flex-shrink: 0;
+      margin-top: 10px;
+    }
+
+    /* Bottom image area */
+    .problem-image {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 80px;
+      background: #ffffff;
+    }
+    .problem-image img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* ── SLIDE 03: Database Description ── */
+    .slide-database {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .database-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .database-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .database-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .database-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    /* Content area with two columns */
+    .database-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      padding: 80px 100px;
+      background: #ffffff;
+    }
+
+    .database-column {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .db-section-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 32px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .db-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .db-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+    }
+
+    .db-bullets li::before {
+      content: '';
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--uw-spirit-gold);
+      flex-shrink: 0;
+      margin-top: 10px;
+    }
+
+    .db-highlight {
+      background: rgba(75, 46, 131, 0.05);
+      border-left: 4px solid var(--uw-spirit-purple);
+      padding: 24px 28px;
+      border-radius: 4px;
+    }
+
+    .db-highlight-title {
+      font-family: 'Open Sans', sans-serif;
+      font-weight: 600;
+      font-size: 28px;
+      color: var(--uw-spirit-purple);
+      margin-bottom: 12px;
+    }
+
+    .db-highlight-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+    }
+
+    /* ── SLIDE 04: Database Access Comparison ── */
+    .slide-access {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .access-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .access-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .access-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .access-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    /* Content area with two columns */
+    .access-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      padding: 60px 100px 80px 100px;
+      background: #ffffff;
+    }
+
+    .access-column {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .access-label {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 32px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding-bottom: 12px;
+      border-bottom: 3px solid var(--uw-spirit-gold);
+    }
+
+    .access-label.old {
+      color: #999999;
+      border-bottom-color: #cccccc;
+    }
+
+    .access-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+
+    .access-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+    }
+
+    .access-bullets li::before {
+      content: '';
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #999999;
+      flex-shrink: 0;
+      margin-top: 9px;
+    }
+
+    .access-bullets.new li::before {
+      background: var(--uw-spirit-gold);
+    }
+
+    .access-diagram {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      min-height: 380px;
+    }
+
+    .access-diagram img {
+      width: 95%;
+      height: 95%;
+      object-fit: contain;
+    }
+
+    /* Make the old approach diagram smaller */
+    .access-column:first-child .access-diagram img {
+      width: 71%;
+      height: 71%;
+    }
+
+  </style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- SLIDE 01: Title -->
+  <section data-label="01 Title" aria-label="Title slide: Lambda as a Tool for Accessing Scientific Databases">
+    <div class="slide-title">
+
+      <!-- TOP: logos -->
+      <div class="logo-row">
+        <div class="left-logos">
+          <img class="uw-w-logo" src="assets/W-Logo_Purple_RGB.png" alt="University of Washington" />
+          <div class="logo-divider"></div>
+          <img class="escience-logo" src="assets/escience-logo.png" alt="eScience Institute" />
+        </div>
+
+        <div class="cloudbank-block">
+          <div class="cb-eyebrow">NSF Cloud Clinics</div>
+          <div class="cb-logo-pill">
+            <img src="assets/cloudbank-logo.png" alt="CloudBank" />
+            <span class="sr-only">NSF Cloud Clinics, presented by CloudBank</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTRE: title -->
+      <div class="hero-block">
+        <div class="clinic-eyebrow">Cloud Clinic</div>
+        <div class="main-title">Lambda as a Tool for Accessing Scientific Databases</div>
+        <div class="title-rule"></div>
+        <div class="subtitle">AWS Lambda · PostgreSQL · EC2</div>
+      </div>
+
+      <!-- BOTTOM: presenter + NSF -->
+      <div class="presenter-row">
+        <div class="presenter-info">
+          <div class="presenter-name">Anthony Arendt</div>
+          <div class="presenter-meta">
+            eScience Institute · University of Washington<br>
+            April 2026
+          </div>
+        </div>
+        <div class="nsf-block">
+          <div class="nsf-eyebrow">Supported by</div>
+          <img src="assets/nsf-logo.png" alt="National Science Foundation" />
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+
+  <!-- SLIDE 02: Research Problem -->
+  <section data-label="02 Research Problem" aria-label="Slide 2: The Research Problem">
+    <div class="slide-problem">
+
+      <!-- Top: purple band with title + bullets -->
+      <div class="problem-top">
+        <p class="problem-eyebrow">Motivation</p>
+        <h1 class="problem-title">The Research Problem</h1>
+        <ul class="problem-bullets" aria-label="Key points about the SnowEx mission">
+          <li>NASA SnowEx (2017–2023): a multi-year field campaign to measure snow properties across diverse landscapes</li>
+          <li>Ground measurements collected for validation of airborne and satellite remote sensing</li>
+          <li>Rich, structured datasets — a natural fit for a relational database</li>
+        </ul>
+      </div>
+
+      <!-- Bottom: overview graphic -->
+      <div class="problem-image">
+        <img src="assets/snowex-overview.png"
+             alt="SnowEx campaign overview: four field photos of snow measurements with the NASA SnowEx 2017–2023 logo, captioned Intense Observation Period and Time Series Campaigns" />
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 03: Database Description -->
+  <section data-label="03 Database" aria-label="Slide 3: Description of the SnowEx Database">
+    <div class="slide-database">
+
+      <!-- Top: purple band with title -->
+      <div class="database-top">
+        <p class="database-eyebrow">The Data</p>
+        <h1 class="database-title">The SnowEx Database</h1>
+      </div>
+
+      <!-- Content: two-column layout -->
+      <div class="database-content">
+
+        <!-- Left column: structure -->
+        <div class="database-column">
+          <div>
+            <h2 class="db-section-title">Structure</h2>
+            <ul class="db-bullets">
+              <li>PostgreSQL with PostGIS spatial extension</li>
+              <li>Normalized relational schema with multiple tables</li>
+              <li>Tables for snow depth, density pits, spectral reflectance, and more</li>
+              <li>Linked by common keys: site name, date, coordinates</li>
+            </ul>
+          </div>
+
+          <div class="db-highlight">
+            <p class="db-highlight-title">Why PostgreSQL?</p>
+            <p class="db-highlight-text">Spatial queries, complex joins, and ACID compliance for research-grade data integrity</p>
+          </div>
+        </div>
+
+        <!-- Right column: content -->
+        <div class="database-column">
+          <div>
+            <h2 class="db-section-title">What's Inside</h2>
+            <ul class="db-bullets">
+              <li>Measurement values with units and uncertainty</li>
+              <li>Metadata: instrument type, observer, protocol</li>
+              <li>Geographic coordinates and site descriptions</li>
+              <li>Temporal coverage across multiple field campaigns</li>
+            </ul>
+          </div>
+
+          <div class="db-highlight">
+            <p class="db-highlight-title">The Challenge</p>
+            <p class="db-highlight-text">Database lives on EC2 — collaborators need a clean, scalable API to query it</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 04: Database Access Comparison -->
+  <section data-label="04 Access" aria-label="Slide 4: Database Access">
+    <div class="slide-access">
+
+      <!-- Top: purple band with title -->
+      <div class="access-top">
+        <p class="access-eyebrow">The Challenge</p>
+        <h1 class="access-title">Database Access</h1>
+      </div>
+
+      <!-- Content: two-column comparison -->
+      <div class="access-content">
+
+        <!-- Left column: old approach -->
+        <div class="access-column">
+          <h2 class="access-label old">Previous Approach</h2>
+          <ul class="access-bullets">
+            <li>Required local CLI client installation</li>
+            <li>Distributed AWS credentials to all users</li>
+            <li>Security concerns with credential management</li>
+            <li>User environment configuration burden</li>
+          </ul>
+          <div class="access-diagram">
+            <img src="assets/AWS-configuration-old.svg" alt="Diagram showing old architecture: users with credentials connecting directly to PostgreSQL database on EC2" />
+          </div>
+        </div>
+
+        <!-- Right column: new approach -->
+        <div class="access-column">
+          <h2 class="access-label">Lambda Solution</h2>
+          <ul class="access-bullets new">
+            <li>Secure, passwordless API access</li>
+            <li>No credential distribution needed</li>
+            <li>API Gateway handles authentication</li>
+            <li>Clean separation of concerns</li>
+          </ul>
+          <div class="access-diagram">
+            <img src="assets/AWS-configuration-new.svg" alt="Diagram showing new architecture: API Gateway connected to Lambda function, which queries PostgreSQL database on EC2" />
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+</deck-stage>
+
+<script>
+  window.addEventListener('load', () => {
+    window.parent.postMessage({ slideIndexChanged: 0 }, '*');
+  });
+  document.querySelector('deck-stage')?.addEventListener('slidechange', (e) => {
+    window.parent.postMessage({ slideIndexChanged: e.detail.index }, '*');
+  });
+</script>
+
+</body>
+</html>

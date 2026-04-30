@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Encode+Sans:wght@900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Open Sans', sans-serif; background: #e8e3d3; padding: 20px; display: flex; flex-wrap: wrap; gap: 16px; }
+.card { background: #fff; border-radius: 3px; box-shadow: 0 2px 12px rgba(50,0,110,0.10); overflow: hidden; width: 180px; }
+.card-img { height: 80px; background: #4b2e83; display: flex; align-items: center; justify-content: center; }
+.card-img img { width: 48px; opacity: 0.9; }
+.card-body { padding: 12px; }
+.overline { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #85754d; margin-bottom: 4px; }
+.card-title { font-family: 'Encode Sans', sans-serif; font-weight: 900; font-size: 13px; color: #32006e; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; margin-bottom: 6px; }
+.card-body p { font-size: 11px; color: #4d4d4d; line-height: 1.5; }
+.card-link { display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 700; color: #4b2e83; text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase; }
+.card-link:hover { color: #32006e; text-decoration: underline; }
+/* Stat card */
+.stat-card { background: #4b2e83; border-radius: 3px; width: 120px; padding: 16px; text-align: center; }
+.stat-num { font-family: 'Encode Sans', sans-serif; font-weight: 900; font-size: 28px; color: #ffc700; letter-spacing: -0.02em; }
+.stat-label { font-size: 10px; color: #e8e3d3; font-weight: 600; margin-top: 4px; letter-spacing: 0.06em; text-transform: uppercase; }
+/* Tag / badge */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 2px; letter-spacing: 0.05em; text-transform: uppercase; }
+.tag-purple { background: #4b2e83; color: #fff; }
+.tag-gold { background: #ffc700; color: #32006e; }
+.tag-outline { border: 1px solid #4b2e83; color: #4b2e83; }
+.tag-green { background: #aadb1e; color: #1a1a1a; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-img">
+      <img src="../assets/W-Logo_Purple_RGB.png" style="filter:brightness(0) invert(1);" alt="UW">
+    </div>
+    <div class="card-body">
+      <div class="overline">College of Arts</div>
+      <div class="card-title">Program Card</div>
+      <p>Explore world-class programs at the University of Washington.</p>
+      <a class="card-link" href="#">Learn More →</a>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="stat-card"><div class="stat-num">56K+</div><div class="stat-label">Students</div></div>
+    <div class="stat-card" style="background:#32006e;"><div class="stat-num" style="font-size:22px;">Top 10</div><div class="stat-label">Public University</div></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <div style="font-size:9px;color:#888;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">Badges / Tags</div>
+    <div class="tags">
+      <span class="tag tag-purple">Undergraduate</span>
+      <span class="tag tag-gold">Graduate</span>
+      <span class="tag tag-outline">Research</span>
+      <span class="tag tag-green">New</span>
+    </div>
+    <div style="margin-top:8px;font-size:9px;color:#888;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">Alert / Notice</div>
+    <div style="background:#e8d3a2;border-left:3px solid #ffc700;padding:8px 10px;font-size:11px;color:#32006e;border-radius:2px;font-weight:600;">Application deadline: March 1, 2025</div>
+    <div style="background:#f0ebf7;border-left:3px solid #4b2e83;padding:8px 10px;font-size:11px;color:#32006e;border-radius:2px;">Classes start September 24.</div>
+  </div>
+</body>
+</html>

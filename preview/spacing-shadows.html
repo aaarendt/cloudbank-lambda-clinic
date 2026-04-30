@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Open Sans', sans-serif; background: #fff; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.section { display: flex; flex-direction: column; gap: 8px; }
+.glabel { font-size: 9px; color: #888; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Shadows */
+.shadow-demo { background: #fff; border-radius: 3px; padding: 10px 14px; font-size: 11px; color: #4d4d4d; width: 120px; text-align: center; }
+
+/* Radii */
+.radii-row { display: flex; gap: 8px; align-items: center; }
+.radius-box { width: 44px; height: 44px; background: #4b2e83; }
+
+/* Borders */
+.border-demo { padding: 8px 12px; font-size: 11px; color: #4b2e83; width: 140px; }
+</style>
+</head>
+<body>
+  <div class="section">
+    <div class="glabel">Elevation / Shadow</div>
+    <div class="shadow-demo" style="box-shadow:0 1px 3px rgba(0,0,0,0.10);">Shadow SM</div>
+    <div class="shadow-demo" style="box-shadow:0 4px 16px rgba(50,0,110,0.12);">Shadow MD</div>
+    <div class="shadow-demo" style="box-shadow:0 8px 32px rgba(50,0,110,0.18);">Shadow LG</div>
+    <div class="shadow-demo" style="box-shadow:0 4px 20px rgba(75,46,131,0.25);">Shadow Brand</div>
+  </div>
+
+  <div class="section">
+    <div class="glabel">Border Radius</div>
+    <div class="radii-row">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="radius-box" style="border-radius:2px;"></div>
+        <div style="font-size:9px;color:#888;">2px sm</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="radius-box" style="border-radius:4px;"></div>
+        <div style="font-size:9px;color:#888;">4px md</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="radius-box" style="border-radius:8px;"></div>
+        <div style="font-size:9px;color:#888;">8px lg</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="radius-box" style="border-radius:9999px;width:44px;"></div>
+        <div style="font-size:9px;color:#888;">pill</div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:#c5b4e3;font-style:italic;">UW standard: sharp (2–4px)</div>
+  </div>
+
+  <div class="section">
+    <div class="glabel">Borders &amp; Dividers</div>
+    <div class="border-demo" style="border:1px solid #b3b3b3;">Default border 1px</div>
+    <div class="border-demo" style="border:2px solid #4b2e83;">Brand border 2px</div>
+    <div class="border-demo" style="border-bottom:3px solid #ffc700;padding-bottom:6px;">Gold accent underline</div>
+    <div class="border-demo" style="border-left:4px solid #4b2e83;background:#f0ebf7;">Left bar (info)</div>
+    <div style="border-top:1px solid #e6e6e6;width:140px;margin:4px 0;"></div>
+    <div style="font-size:10px;color:#808080;">Hairline divider</div>
+  </div>
+</body>
+</html>
