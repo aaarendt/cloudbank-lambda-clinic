@@ -19,7 +19,12 @@
     "Now I want to show you what it actually looks like to create a Lambda function in the AWS console. I'm going to do this live so you can see the interface and get oriented to how Lambda works. We'll start with the simplest possible example — the hello world function that AWS provides by default. This will give you a sense of the Lambda console layout, how to create a function, and what the execution model looks like. Then we'll talk about why this simple zip file approach doesn't work for scientific Python, and what we need to do instead. Let me switch over to the console and walk through creating a basic function.",
     "So why do we need container images for the SnowEx database? The answer comes down to package size. When you're working with scientific Python, you're not dealing with lightweight libraries. NumPy alone is tens of megabytes. Add Pandas for data manipulation, SQLAlchemy for database connections, GeoAlchemy2 for spatial queries, and you're well over the 50-megabyte zip file limit that Lambda imposes. And that's before you even write your own code. The zip approach that works great for hello world functions simply doesn't scale to real scientific workloads. So what's the alternative? Container images. Instead of zipping up your Python code and dependencies, you write a Dockerfile — the same tool you'd use for any containerized application — install your dependencies normally using pip or conda, build the image, push it to AWS Elastic Container Registry, and point your Lambda function at that image. Lambda pulls the image and runs it just like it would run a zip file, but now you have 10 gigabytes of space instead of 50 megabytes. This isn't a workaround or a hack — it's the modern, recommended way to deploy Lambda functions with heavy dependencies. AWS built this capability specifically for use cases like ours.",
     "Now let's look at what the actual Dockerfile looks like for the SnowEx Lambda function. If you've never seen a Dockerfile before, think of it as a recipe — a list of instructions that tells Docker how to build your container image. The first line specifies the base image. AWS provides official Lambda base images for Python, so we start with that. It already has the Lambda runtime configured, which saves us a lot of setup. Next, we copy our requirements file into the image and run pip install to download all our Python dependencies — NumPy, Pandas, SQLAlchemy, GeoAlchemy2, all the libraries we need. Then we copy our actual function code into the image. Finally, we tell Lambda which function to invoke when the container runs. That's it. This Dockerfile is available in the SnowEx GitHub repository, and you can use it as a template for your own database query functions. The key thing to notice is that this looks almost identical to any Python Dockerfile you'd write for a web app or a data pipeline — Lambda's container support uses standard Docker tooling, which means you can leverage existing knowledge and workflows.",
-    "Now let's look at the actual Python code that runs inside the Lambda function — the handler. This is where the real work happens. When API Gateway receives a query request, it packages that request into an event object and passes it to this handler function. The handler takes two arguments. The first is event, which contains all the incoming data — in our case, that's the database query parameters sent by the user. The second is context, which gives you runtime information like how much time you have left before Lambda times out. We start by parsing the query parameters from the event. Then we use SQLAlchemy to connect to our PostgreSQL database on EC2. We execute the query, fetch the results, and return them as JSON. Lambda automatically handles the HTTP response, so we just return a dictionary with a status code and a body. The key point here is that this is just normal Python. You're not learning a new framework or a proprietary API. If you can write a function that connects to a database and returns JSON, you can write a Lambda function. The only Lambda-specific part is the function signature — event and context — and even that is straightforward once you see it once."
+    "Now let's look at the actual Python code that runs inside the Lambda function — the handler. This is where the real work happens. When API Gateway receives a query request, it packages that request into an event object and passes it to this handler function. The handler takes two arguments. The first is event, which contains all the incoming data — in our case, that's the database query parameters sent by the user. The second is context, which gives you runtime information like how much time you have left before Lambda times out. We start by parsing the query parameters from the event. Then we use SQLAlchemy to connect to our PostgreSQL database on EC2. We execute the query, fetch the results, and return them as JSON. Lambda automatically handles the HTTP response, so we just return a dictionary with a status code and a body. The key point here is that this is just normal Python. You're not learning a new framework or a proprietary API. If you can write a function that connects to a database and returns JSON, you can write a Lambda function. The only Lambda-specific part is the function signature — event and context — and even that is straightforward once you see it once.",
+    "Now that we have our Dockerfile and handler code, we need to build the container image and push it to AWS. This is where ECR comes in — Elastic Container Registry. Think of it as Docker Hub, but inside your AWS account. The deployment process has three main steps. First, you build the Docker image locally using docker build. This reads your Dockerfile, installs all your dependencies, and packages everything into a container image. Second, you tag the image with your ECR repository URL. This tells Docker where you want to push the image. Third, you push the image to ECR using docker push. Once it's in ECR, Lambda can pull it and run it. I'm not going to execute these commands live because the build step can take a few minutes — we're installing NumPy, Pandas, and all those scientific Python libraries, which takes time. But I want you to see the commands so you know what the workflow looks like. For today's demo, I've already built and pushed an image to ECR, so we can focus on the Lambda configuration and actually querying the database.",
+    "The last step is making the Lambda function accessible to users. Right now, the function exists inside AWS, but nobody can reach it. It's like having a phone without a phone number. What we need is a way for researchers to send queries from their laptop, from a Jupyter notebook, from anywhere, and have those queries reach the Lambda function. AWS makes this simple — they give your Lambda function a web address, just like any website has a URL. You enable this feature in the Lambda console, and AWS hands you an HTTPS URL. Now anyone with that URL can send a query. Of course, you don't want just anyone querying your database, so you set access controls. You can make it completely public, you can require a password, or you can require AWS credentials. For SnowEx, we require AWS credentials, which means only people we've granted permission can run queries. Once that's set up, the workflow is simple. A researcher sends a query from their Python script. That query goes to the URL. AWS receives it, invokes your Lambda function, the function queries the database, and the results come back. That's it. No servers to manage, no VPN to configure, no SSH keys to distribute. Just a URL.",
+    "Now let's step back and look at the complete architecture we've just built. This diagram shows all the pieces working together. First, we have our container image stored in ECR — that's the package we built with our Dockerfile containing all our scientific Python dependencies and our handler code. Second, the Lambda function itself pulls that container image and runs it on demand. When a query comes in, Lambda retrieves database credentials from Secrets Manager, connects to the PostgreSQL database running on EC2, executes the SQL query, and returns the results. Third, we have the Function URL that acts as the entry point — researchers send HTTPS requests to that URL, and AWS IAM authentication ensures only authorized users can invoke the function. Finally, the database itself lives on an EC2 instance with credentials securely managed by Secrets Manager, so we never hardcode passwords. The result is a secure, serverless API that lets researchers query the database without managing any infrastructure or handling credentials themselves. This pattern is transferable — you could use the exact same architecture for genomics databases, climate model outputs, hydrology data, or any other scientific dataset that lives in PostgreSQL. Lambda fills the gap between a quick Jupyter notebook prototype and a full production deployment. It gives you the benefits of cloud infrastructure without the operational overhead.",
+    "Alright, let's see this in action. I'm switching over to a Jupyter notebook now. The first thing I want to show you is how simple the client setup is. No config files, no credential management — just import the client and instantiate it. Behind the scenes, this is hitting our Lambda function URL with AWS IAM authentication, but from the researcher's perspective, it just works. Now I'll query snow depth measurements from the Grand Mesa campaign in February 2020. Grand Mesa is one of our core sites in Colorado. I'm asking for magnaprobe data — that's a handheld GPS-enabled probe that field teams use to measure snow depth. I'm limiting it to 500 points so this runs quickly. We might see a few seconds of delay here — that's the Lambda cold start I mentioned earlier. The first invocation warms up the container. Great, we got our data back. You can see it's just a pandas DataFrame with date, depth, latitude, longitude. And now I can plot it — a quick scatter plot colored by snow depth. Blues for shallow snow, darker blues for deeper snow. This is real data from the field, pulled from our PostgreSQL database on EC2, routed through Lambda, and displayed here with zero infrastructure setup on my end. That's the pattern we've been building toward.",
+    "Now let's talk about when you need to go beyond the helper methods. The API methods like get_point_measurements work great for standard queries — filtering by campaign, instrument, date, or location. But sometimes you need something more complex. For example, say you want to find the average magnaprobe snow depth within 10 meters of each snow pit on the same day. That's a spatial join using PostGIS functions, combined with a date match and a GROUP BY aggregation. The helper methods can't do that. This is where client.query comes in. You can write raw SQL with full access to PostGIS spatial functions, JOIN across multiple tables, and use aggregate functions like AVG or COUNT. You're still using the Lambda API — same secure, credential-free access — but now you have the full power of SQL and PostGIS. The key thing to understand is that Lambda still has the same constraints. If your query takes more than 15 minutes or returns more than 6 megabytes, it will fail. So raw SQL isn't a magic solution for bulk exports. It's a tool for complex queries that the helper methods don't support. For most use cases, stick with the helper methods — they're simpler and less error-prone. But when you need spatial joins, multi-table queries, or custom aggregations, client.query gives you that flexibility."
   ]
   </script>
 
@@ -1517,26 +1522,26 @@
     .annotation-card {
       background: rgba(75, 46, 131, 0.06);
       border-left: 4px solid var(--uw-spirit-purple);
-      padding: 20px 24px;
+      padding: 16px 20px;
       border-radius: 4px;
     }
 
     .annotation-label {
       font-family: 'Encode Sans', sans-serif;
       font-weight: 700;
-      font-size: 20px;
+      font-size: 18px;
       color: var(--uw-spirit-purple);
       letter-spacing: 0.02em;
       text-transform: uppercase;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .annotation-text {
       font-family: 'Open Sans', sans-serif;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 400;
       color: #333333;
-      line-height: 1.4;
+      line-height: 1.35;
     }
 
     .dockerfile-footer {
@@ -1573,24 +1578,24 @@
     }
 
     .handler-header {
-      padding: 48px 80px 36px 80px;
+      padding: 40px 80px 30px 80px;
       background: var(--uw-spirit-purple);
     }
 
     .handler-eyebrow {
       font-family: 'Open Sans', sans-serif;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 600;
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--uw-spirit-gold);
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .handler-title {
       font-family: 'Encode Sans', sans-serif;
       font-weight: 900;
-      font-size: 56px;
+      font-size: 50px;
       line-height: 1.0;
       text-transform: uppercase;
       color: #ffffff;
@@ -1598,9 +1603,9 @@
 
     .handler-content {
       display: grid;
-      grid-template-columns: 1fr 380px;
-      gap: 40px;
-      padding: 20px 80px 60px 80px;
+      grid-template-columns: 1fr 360px;
+      gap: 32px;
+      padding: 20px 80px 40px 80px;
       background: #ffffff;
     }
 
@@ -1608,11 +1613,11 @@
       background: #f5f5f5;
       border: 2px solid #d0d0d0;
       border-radius: 8px;
-      padding: 32px;
+      padding: 24px 28px;
       overflow-y: auto;
       font-family: 'Courier New', monospace;
-      font-size: 24px;
-      line-height: 1.6;
+      font-size: 22px;
+      line-height: 1.5;
       color: #2d2d2d;
     }
 
@@ -1623,6 +1628,1037 @@
 
     .code-param {
       color: #0066cc;
+    }
+
+    /* ── SLIDE 12: Deploying to ECR ── */
+    .slide-deploy-ecr {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .deploy-ecr-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .deploy-ecr-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .deploy-ecr-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .deploy-ecr-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .deploy-ecr-content {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      padding: 60px 100px;
+      background: #ffffff;
+    }
+
+    .command-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .command-label {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .command-box {
+      background: #f5f5f5;
+      border: 2px solid #d0d0d0;
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 6px;
+      padding: 20px 28px;
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      line-height: 1.5;
+      color: #2d2d2d;
+    }
+
+    .command-description {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      color: #666666;
+      line-height: 1.4;
+      padding-left: 8px;
+    }
+
+    .deploy-note {
+      padding: 24px 32px;
+      background: rgba(75, 46, 131, 0.08);
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    .deploy-note-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.5;
+    }
+
+    /* ── SLIDE 13: API Gateway ── */
+    .slide-api-gateway {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .api-gateway-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .api-gateway-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .api-gateway-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .api-gateway-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .api-gateway-content {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      padding: 60px 100px;
+      background: #ffffff;
+    }
+
+    .config-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .config-label {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .config-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .config-card {
+      background: #f5f5f5;
+      border: 2px solid #d0d0d0;
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 6px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .config-card-title {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.3;
+    }
+
+    .config-card-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+    }
+
+    .api-gateway-result {
+      padding: 28px 32px;
+      background: rgba(75, 46, 131, 0.08);
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    .api-gateway-result-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.5;
+    }
+
+    /* ── SLIDE 13 v2: Visual redesign ── */
+    .api-gateway-content-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px 80px 20px 80px;
+      background: #ffffff;
+    }
+
+    .access-problem-banner {
+      padding: 10px 20px;
+      background: rgba(75, 46, 131, 0.08);
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+    }
+
+    .access-problem-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.2;
+    }
+
+    /* Before/After comparison grid */
+    .access-flow-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+      margin: 4px 0;
+    }
+
+    .access-state-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 14px;
+      background: #f8f8f8;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      min-height: 160px;
+      justify-content: center;
+    }
+
+    .access-state-panel.before {
+      border-color: #d32f2f;
+      background: rgba(255, 82, 82, 0.05);
+    }
+
+    .access-state-panel.after {
+      border-color: var(--uw-spirit-gold);
+      background: rgba(255, 199, 0, 0.05);
+    }
+
+    .access-state-label {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .lambda-isolated-box, .lambda-accessible-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: #ffffff;
+      border: 2px solid #d0d0d0;
+      border-radius: 6px;
+      width: 100%;
+    }
+
+    .lambda-isolated-icon, .lambda-accessible-icon {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    .lambda-isolated-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .lambda-isolated-title {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333333;
+      text-align: center;
+    }
+
+    .lambda-isolated-sub {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      color: #666666;
+      text-align: center;
+    }
+
+    .access-blocked-icon, .access-allowed-icon {
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    .access-state-description {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333333;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .access-flow-arrow-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .arrow-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .arrow-symbol {
+      font-size: 44px;
+      color: var(--uw-spirit-gold);
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .url-badge {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(75, 46, 131, 0.05);
+      border: 1px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+    }
+
+    .url-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .url-value {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #333333;
+      word-break: break-all;
+      line-height: 1.2;
+    }
+
+    /* Configuration panel mockup */
+    .config-panel-visual {
+      background: #f5f5f5;
+      border: 2px solid #d0d0d0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 6px 120px;
+    }
+
+    .config-panel-header {
+      background: var(--uw-spirit-purple);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .config-panel-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .config-panel-title {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+    }
+
+    .config-panel-body {
+      padding: 16px 20px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .config-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+
+    .config-toggle-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: #333333;
+    }
+
+    .config-toggle-switch {
+      font-family: 'Encode Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      background: #4caf50;
+      padding: 4px 16px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .config-option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+
+    .config-option-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: #333333;
+    }
+
+    .config-option-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .config-btn {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: #666666;
+      background: #ffffff;
+      border: 2px solid #d0d0d0;
+      padding: 8px 14px;
+      border-radius: 4px;
+      cursor: default;
+    }
+
+    .config-btn.active {
+      color: #ffffff;
+      background: var(--uw-spirit-purple);
+      border-color: var(--uw-spirit-purple);
+    }
+
+    /* Access control cards */
+    .access-control-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .access-control-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 28px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .access-control-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin: 0 100px;
+    }
+
+    .access-control-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px;
+      background: #f8f8f8;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .access-control-card.highlighted {
+      background: rgba(75, 46, 131, 0.08);
+      border-color: var(--uw-spirit-gold);
+      border-width: 3px;
+    }
+
+    .access-control-icon {
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .access-control-name {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+    }
+
+    .access-control-desc {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.3;
+    }
+
+    /* URL badge inside highlighted card */
+    .url-badge-inline {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    .url-label-small {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .url-value-small {
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      color: #333333;
+      word-break: break-all;
+      line-height: 1.3;
+    }
+
+    /* Advantages section */
+    .advantages-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 20px 80px;
+      margin-top: 8px;
+    }
+
+    .advantages-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .advantages-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .advantage-item {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+      padding-left: 36px;
+      position: relative;
+    }
+
+    .advantage-item::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--uw-spirit-gold);
+      font-weight: bold;
+      font-size: 24px;
+    }
+
+    .advantage-item strong {
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+    }
+
+    /* Final workflow banner */
+    .final-workflow-banner {
+      padding: 12px 20px;
+      background: rgba(255, 199, 0, 0.15);
+      border: 2px solid var(--uw-spirit-gold);
+      border-radius: 6px;
+      margin-top: 2px;
+    }
+
+    .final-workflow-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    .final-workflow-text strong {
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+    }
+
+    /* ── SLIDE 14: Architecture Overview ── */
+    .slide-architecture {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    /* Purple top band */
+    .architecture-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .architecture-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .architecture-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .architecture-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .architecture-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 30px 60px 50px 60px;
+      background: #ffffff;
+    }
+
+    .architecture-diagram-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
+    .architecture-diagram {
+      width: 1100px;
+      height: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+    }
+
+    .architecture-callouts {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .callout-box {
+      display: flex;
+      gap: 16px;
+      padding: 20px;
+      background: #f8f8f8;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      align-items: flex-start;
+    }
+
+    .callout-number {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      background: var(--uw-spirit-gold);
+      color: var(--uw-spirit-purple);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 26px;
+    }
+
+    .callout-content {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .callout-title {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .callout-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .architecture-benefit {
+      padding: 20px 28px;
+      background: rgba(75, 46, 131, 0.08);
+      border-left: 4px solid var(--uw-spirit-purple);
+      border-radius: 4px;
+    }
+
+    .architecture-benefit-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      color: #333333;
+      line-height: 1.4;
+      text-align: center;
+      margin: 0;
+    }
+
+    .architecture-benefit-text strong {
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+    }
+
+    /* ── SLIDE 15: Live Demo Transition ── */
+    .slide-demo {
+      width: 100%; height: 100%;
+      background: var(--uw-husky-purple);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 32px;
+      padding: 100px;
+      position: relative;
+    }
+
+    /* Gold top bar */
+    .slide-demo::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .demo-main-text {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 120px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    .demo-subtitle {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 42px;
+      font-weight: 600;
+      color: var(--uw-spirit-gold);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .demo-context {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 32px;
+      font-weight: 400;
+      color: var(--uw-husky-gold-web);
+      text-align: center;
+      line-height: 1.4;
+      max-width: 1200px;
+      margin-top: 24px;
+    }
+
+    .demo-transition-note {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Open Sans', sans-serif;
+      font-size: 28px;
+      font-weight: 400;
+      color: var(--uw-husky-gold-web);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .demo-arrow {
+      font-size: 32px;
+      color: var(--uw-spirit-gold);
+    }
+
+    /* ── SLIDE 16: Limitations in Practice ── */
+    .slide-limitations-practice {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    .limitations-practice-top {
+      background: var(--uw-spirit-purple);
+      padding: 56px 100px 52px 100px;
+      position: relative;
+    }
+    .limitations-practice-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .limitations-practice-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 20px;
+    }
+
+    .limitations-practice-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .limitations-practice-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      padding: 50px 80px 60px 80px;
+      background: #ffffff;
+    }
+
+    .approach-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .approach-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 3px solid #e0e0e0;
+    }
+
+    .approach-panel.problem .approach-header {
+      border-bottom-color: #d32f2f;
+    }
+
+    .approach-panel.solution .approach-header {
+      border-bottom-color: var(--uw-spirit-gold);
+    }
+
+    .approach-icon {
+      font-size: 36px;
+      line-height: 1;
+    }
+
+    .approach-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 32px;
+      color: var(--uw-spirit-purple);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .code-block-container {
+      background: #f8f8f8;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 30px;
+      line-height: 1.6;
+      color: #333333;
+      overflow-x: auto;
+    }
+
+    .code-comment {
+      color: #666666;
+      font-style: italic;
+    }
+
+    .problem-note {
+      background: rgba(211, 47, 47, 0.08);
+      border-left: 4px solid #d32f2f;
+      padding: 16px 20px;
+      border-radius: 4px;
+      margin-top: 12px;
+    }
+
+    .problem-note-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: #d32f2f;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .solution-note {
+      background: rgba(255, 199, 0, 0.12);
+      border-left: 4px solid var(--uw-spirit-gold);
+      padding: 16px 20px;
+      border-radius: 4px;
+      margin-top: 12px;
+    }
+
+    .solution-note-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .key-message-banner {
+      grid-column: 1 / -1;
+      background: rgba(75, 46, 131, 0.08);
+      border: 2px solid var(--uw-spirit-purple);
+      border-radius: 6px;
+      padding: 24px 32px;
+      margin-top: 20px;
+    }
+
+    .key-message-text {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.5;
+      text-align: center;
+      margin: 0;
     }
 
   </style>
@@ -2102,8 +3138,76 @@
   </section>
 
 
-  <!-- SLIDE 10: The Dockerfile -->
-  <section data-label="10 Dockerfile" aria-label="Slide 10: The Dockerfile">
+  <!-- SLIDE 10: The Handler Function -->
+  <section data-label="10 Handler" aria-label="Slide 10: The Lambda Handler Function">
+    <div class="slide-handler">
+
+      <div class="handler-header">
+        <p class="handler-eyebrow">The Entry Point</p>
+        <h1 class="handler-title">The Handler Function</h1>
+      </div>
+
+      <div class="handler-content">
+
+        <!-- Code panel -->
+        <div class="handler-code-panel" role="img" aria-label="Python handler function code for Lambda">
+<span class="code-line"><span class="code-keyword">import</span> os, json</span>
+<span class="code-line"><span class="code-keyword">from</span> snowexsql <span class="code-keyword">import</span> db</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="code-keyword">def</span> <span class="code-function">lambda_handler</span>(<span class="code-param">event</span>, <span class="code-param">context</span>):</span>
+<span class="code-line">    <span class="code-comment"># Fetch database credentials from Secrets Manager</span></span>
+<span class="code-line">    secret = _get_secret(os.environ[<span class="code-string">'DB_SECRET_NAME'</span>])</span>
+<span class="code-line">    </span>
+<span class="code-line">    <span class="code-comment"># Write temporary credentials file</span></span>
+<span class="code-line">    _write_temp_credentials(secret, <span class="code-string">'/tmp/credentials.json'</span>)</span>
+<span class="code-line">    </span>
+<span class="code-line">    <span class="code-comment"># Connect to database using credentials</span></span>
+<span class="code-line">    engine, session = db.get_db(<span class="code-string">'/tmp/credentials.json'</span>)</span>
+<span class="code-line">    </span>
+<span class="code-line">    <span class="code-comment"># Execute query based on event action</span></span>
+<span class="code-line">    action = event.get(<span class="code-string">'action'</span>)</span>
+<span class="code-line">    result = _handle_action(action, event, session)</span>
+<span class="code-line">    </span>
+<span class="code-line">    <span class="code-comment"># Return JSON response</span></span>
+<span class="code-line">    <span class="code-keyword">return</span> {</span>
+<span class="code-line">        <span class="code-string">'statusCode'</span>: <span class="code-string">200</span>,</span>
+<span class="code-line">        <span class="code-string">'body'</span>: json.dumps(result)</span>
+<span class="code-line">    }</span>
+        </div>
+
+        <!-- Annotations panel -->
+        <div class="annotations-panel">
+
+          <div class="annotation-card">
+            <p class="annotation-label">Secrets Manager</p>
+            <p class="annotation-text">No hardcoded passwords! Credentials are fetched securely from AWS Secrets Manager at runtime</p>
+          </div>
+
+          <div class="annotation-card">
+            <p class="annotation-label">Temporary Credentials</p>
+            <p class="annotation-text">Writes credentials to /tmp/ for the duration of this invocation — never stored permanently</p>
+          </div>
+
+          <div class="annotation-card">
+            <p class="annotation-label">Database Connection</p>
+            <p class="annotation-text">Uses snowexsql package's db.get_db() with credential file — same code works locally and in Lambda</p>
+          </div>
+
+          <div class="annotation-card">
+            <p class="annotation-label">Action Handling</p>
+            <p class="annotation-text">Event specifies action (query type), handler delegates to appropriate method, returns JSON</p>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 11: The Dockerfile -->
+  <section data-label="11 Dockerfile" aria-label="Slide 11: The Dockerfile">
     <div class="slide-dockerfile">
 
       <div class="dockerfile-header">
@@ -2115,29 +3219,30 @@
 
         <!-- Dockerfile code panel -->
         <div class="code-panel" role="img" aria-label="Dockerfile code for SnowEx Lambda function">
-<span class="code-line"><span class="code-comment"># Start from AWS Lambda Python base image</span></span>
-<span class="code-line"><span class="code-keyword">FROM</span> <span class="code-string">public.ecr.aws/lambda/python:3.11</span></span>
+<span class="code-line"><span class="code-keyword">FROM</span> <span class="code-string">public.ecr.aws/lambda/python:3.12</span></span>
 <span class="code-line"></span>
 <span class="code-line"><span class="code-comment"># Copy requirements and install dependencies</span></span>
-<span class="code-line"><span class="code-keyword">COPY</span> requirements.txt .</span>
-<span class="code-line"><span class="code-keyword">RUN</span> pip install --no-cache-dir -r requirements.txt</span>
+<span class="code-line"><span class="code-keyword">COPY</span> deployment/docker/requirements-lambda.txt ${LAMBDA_TASK_ROOT}/</span>
+<span class="code-line"><span class="code-keyword">RUN</span> pip install --no-cache-dir -r requirements-lambda.txt</span>
 <span class="code-line"></span>
-<span class="code-line"><span class="code-comment"># Copy function code</span></span>
-<span class="code-line"><span class="code-keyword">COPY</span> lambda_function.py ${LAMBDA_TASK_ROOT}/</span>
+<span class="code-line"><span class="code-comment"># Copy the snowexsql package</span></span>
+<span class="code-line"><span class="code-keyword">COPY</span> snowexsql/ ${LAMBDA_TASK_ROOT}/snowexsql/</span>
 <span class="code-line"></span>
 <span class="code-line"><span class="code-comment"># Set the CMD to your handler</span></span>
-<span class="code-line"><span class="code-keyword">CMD</span> [<span class="code-string">"lambda_function.handler"</span>]</span>
+<span class="code-line"><span class="code-keyword">CMD</span> [<span class="code-string">"snowexsql.lambda_handler.lambda_handler"</span>]</span>
         </div>
 
-        <!-- Requirements.txt panel -->
+        <!-- Requirements panel -->
         <div class="requirements-panel">
           <span class="code-arrow">→</span>
-          <div class="requirements-header">requirements.txt</div>
-<span class="code-line">sqlalchemy</span>
-<span class="code-line">geoalchemy2</span>
-<span class="code-line">pandas</span>
-<span class="code-line">numpy</span>
-<span class="code-line">psycopg2-binary</span>
+          <div class="requirements-header">requirements-lambda.txt</div>
+<span class="code-line">utm>=0.5.0,&lt;1.0</span>
+<span class="code-line">geoalchemy2>=0.6,&lt;1.0</span>
+<span class="code-line">shapely>=2.0.0,&lt;3.0</span>
+<span class="code-line">pandas>=1.5.0,&lt;3.0</span>
+<span class="code-line">psycopg2-binary>=2.9.0</span>
+<span class="code-line">SQLAlchemy>=2.0.0</span>
+<span class="code-line">boto3>=1.26.0</span>
         </div>
 
         <!-- Annotations panel -->
@@ -2175,64 +3280,285 @@
   </section>
 
 
-  <!-- SLIDE 10b: The Handler Function -->
-  <section data-label="11 Handler" aria-label="Slide 11: The Lambda Handler Function">
-    <div class="slide-handler">
+  <!-- SLIDE 12: Deploying to ECR -->
+  <section data-label="12 Deploy ECR" aria-label="Slide 12: Deploying to ECR">
+    <div class="slide-deploy-ecr">
 
-      <div class="handler-header">
-        <p class="handler-eyebrow">The Entry Point</p>
-        <h1 class="handler-title">The Handler Function</h1>
+      <!-- Top: purple band with title -->
+      <div class="deploy-ecr-top">
+        <p class="deploy-ecr-eyebrow">Build & Deploy</p>
+        <h1 class="deploy-ecr-title">Deploying to ECR</h1>
       </div>
 
-      <div class="handler-content">
+      <!-- Content: three command sections -->
+      <div class="deploy-ecr-content">
 
-        <!-- Code panel -->
-        <div class="handler-code-panel" role="img" aria-label="Python handler function code for Lambda">
-<span class="code-line"><span class="code-keyword">import</span> json</span>
-<span class="code-line"><span class="code-keyword">from</span> sqlalchemy <span class="code-keyword">import</span> create_engine</span>
-<span class="code-line"></span>
-<span class="code-line"><span class="code-keyword">def</span> <span class="code-function">handler</span>(<span class="code-param">event</span>, <span class="code-param">context</span>):</span>
-<span class="code-line">    <span class="code-comment"># Parse incoming query from API Gateway</span></span>
-<span class="code-line">    query_params = event[<span class="code-string">'queryStringParameters'</span>]</span>
-<span class="code-line">    </span>
-<span class="code-line">    <span class="code-comment"># Connect to PostgreSQL on EC2</span></span>
-<span class="code-line">    engine = create_engine(DATABASE_URL)</span>
-<span class="code-line">    </span>
-<span class="code-line">    <span class="code-comment"># Execute query</span></span>
-<span class="code-line">    <span class="code-keyword">with</span> engine.connect() <span class="code-keyword">as</span> conn:</span>
-<span class="code-line">        results = conn.execute(query)</span>
-<span class="code-line">        data = [dict(row) <span class="code-keyword">for</span> row <span class="code-keyword">in</span> results]</span>
-<span class="code-line">    </span>
-<span class="code-line">    <span class="code-comment"># Return JSON response</span></span>
-<span class="code-line">    <span class="code-keyword">return</span> {</span>
-<span class="code-line">        <span class="code-string">'statusCode'</span>: <span class="code-string">200</span>,</span>
-<span class="code-line">        <span class="code-string">'body'</span>: json.dumps(data)</span>
-<span class="code-line">    }</span>
+        <!-- Step 1: Build -->
+        <div class="command-section">
+          <h2 class="command-label">01 · Build the Docker Image</h2>
+          <div class="command-box">docker build -t snowex-lambda .</div>
+          <p class="command-description">Reads Dockerfile, installs dependencies, packages everything into a container image</p>
         </div>
 
-        <!-- Annotations panel -->
-        <div class="annotations-panel">
+        <!-- Step 2: Tag -->
+        <div class="command-section">
+          <h2 class="command-label">02 · Tag for ECR</h2>
+          <div class="command-box">docker tag snowex-lambda:latest &lt;account-id&gt;.dkr.ecr.us-west-2.amazonaws.com/snowex-lambda:latest</div>
+          <p class="command-description">Tags the image with your ECR repository URL</p>
+        </div>
 
-          <div class="annotation-card">
-            <p class="annotation-label">Event</p>
-            <p class="annotation-text">Contains incoming data from API Gateway — query parameters, headers, request body</p>
+        <!-- Step 3: Push -->
+        <div class="command-section">
+          <h2 class="command-label">03 · Push to ECR</h2>
+          <div class="command-box">docker push &lt;account-id&gt;.dkr.ecr.us-west-2.amazonaws.com/snowex-lambda:latest</div>
+          <p class="command-description">Uploads image to AWS — Lambda can now pull and run it</p>
+        </div>
+
+        <!-- Note -->
+        <div class="deploy-note">
+          <p class="deploy-note-text">⏱️ Build step takes several minutes to install scientific Python libraries</p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 13: Making Lambda Accessible -->
+  <section data-label="13 Access" aria-label="Slide 13: Making Lambda Accessible to Users">
+    <div class="slide-api-gateway">
+
+      <!-- Top: purple band with title -->
+      <div class="api-gateway-top">
+        <p class="api-gateway-eyebrow">The Final Step</p>
+        <h1 class="api-gateway-title">Making Lambda Accessible</h1>
+      </div>
+
+      <!-- Content: visual workflow -->
+      <div class="api-gateway-content-v2">
+
+        <!-- Configuration Panel -->
+        <div class="config-panel-visual">
+          <div class="config-panel-header">
+            <span class="config-panel-icon">⚙️</span>
+            <span class="config-panel-title">Lambda Console: Configuration → Function URL</span>
+          </div>
+          <div class="config-panel-body">
+            <div class="config-toggle-row">
+              <span class="config-toggle-label">Create function URL</span>
+              <span class="config-toggle-switch">ON</span>
+            </div>
+            <div class="config-option-row">
+              <span class="config-option-label">Auth type</span>
+              <div class="config-option-buttons">
+                <button class="config-btn">NONE (Public)</button>
+                <button class="config-btn active">AWS_IAM (Credentials Required)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Access Control Summary -->
+        <div class="access-control-summary">
+          <h2 class="access-control-title">Access Control Options</h2>
+          <div class="access-control-cards">
+
+            <div class="access-control-card">
+              <div class="access-control-icon">🌐</div>
+              <div class="access-control-name">Public</div>
+              <div class="access-control-desc">Anyone with the URL can query</div>
+            </div>
+
+            <div class="access-control-card highlighted">
+              <div class="access-control-icon">🔐</div>
+              <div class="access-control-name">AWS IAM</div>
+              <div class="access-control-desc">Requires AWS credentials (SnowEx uses this)</div>
+              <div class="url-badge-inline">
+                <div class="url-label-small">Function URL</div>
+                <div class="url-value-small">https://xyz123.lambda-url.us-west-2.on.aws</div>
+              </div>
+            </div>
+
+            <div class="access-control-card">
+              <div class="access-control-icon">🔑</div>
+              <div class="access-control-name">API Key</div>
+              <div class="access-control-desc">Requires API Gateway with key</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Key Advantages -->
+        <div class="advantages-section">
+          <h2 class="advantages-title">Why AWS IAM?</h2>
+          <ul class="advantages-list">
+            <li class="advantage-item"><strong>No credential distribution:</strong> Users authenticate with their own AWS credentials, not shared database passwords</li>
+            <li class="advantage-item"><strong>Audit trail:</strong> Every Lambda invocation is logged in CloudTrail with the IAM identity</li>
+            <li class="advantage-item"><strong>Granular permissions:</strong> Fine-grained control through IAM policies (who, what, when, from where)</li>
+            <li class="advantage-item"><strong>Automatic rotation:</strong> AWS access keys can be rotated; temporary credentials expire automatically</li>
+            <li class="advantage-item"><strong>Defense in depth:</strong> Function URL is useless without valid AWS credentials + IAM permission</li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 14: Architecture Overview -->
+  <section data-label="14 Architecture" aria-label="Slide 14: SnowEx Lambda Architecture Overview">
+    <div class="slide-architecture">
+
+      <!-- Top: purple band with title -->
+      <div class="architecture-top">
+        <p class="architecture-eyebrow">Putting It All Together</p>
+        <h1 class="architecture-title">SnowEx Lambda Architecture</h1>
+      </div>
+
+      <!-- Content: diagram with callouts -->
+      <div class="architecture-content">
+
+        <!-- Architecture diagram -->
+        <div class="architecture-diagram-container">
+          <img src="assets/AWS-configuration-new.svg" alt="Architecture diagram showing researcher connecting to Lambda function via Function URL, Lambda connecting to PostgreSQL database on EC2, with ECR providing the container image" class="architecture-diagram" />
+        </div>
+
+        <!-- Callouts -->
+        <div class="architecture-callouts">
+
+          <div class="callout-box callout-1">
+            <div class="callout-number">1</div>
+            <div class="callout-content">
+              <h3 class="callout-title">Container Image</h3>
+              <p class="callout-text">Built with Dockerfile, pushed to ECR, includes all scientific Python dependencies</p>
+            </div>
           </div>
 
-          <div class="annotation-card">
-            <p class="annotation-label">Context</p>
-            <p class="annotation-text">Runtime info — remaining time, request ID, function version</p>
+          <div class="callout-box callout-2">
+            <div class="callout-number">2</div>
+            <div class="callout-content">
+              <h3 class="callout-title">Lambda Handler</h3>
+              <p class="callout-text">Python function retrieves credentials from Secrets Manager, executes SQL query</p>
+            </div>
           </div>
 
-          <div class="annotation-card">
-            <p class="annotation-label">Database Connection</p>
-            <p class="annotation-text">SQLAlchemy connects to PostgreSQL on EC2 — same as any Python app</p>
+          <div class="callout-box callout-3">
+            <div class="callout-number">3</div>
+            <div class="callout-content">
+              <h3 class="callout-title">Function URL</h3>
+              <p class="callout-text">HTTPS endpoint with AWS IAM authentication — no public access</p>
+            </div>
           </div>
 
-          <div class="annotation-card">
-            <p class="annotation-label">Return Format</p>
-            <p class="annotation-text">Lambda expects a dict with statusCode and body — API Gateway converts to HTTP response</p>
+          <div class="callout-box callout-4">
+            <div class="callout-number">4</div>
+            <div class="callout-content">
+              <h3 class="callout-title">PostgreSQL Database</h3>
+              <p class="callout-text">Running on EC2, credentials managed by Secrets Manager</p>
+            </div>
           </div>
 
+        </div>
+
+        <!-- Key benefit banner -->
+        <div class="architecture-benefit">
+          <p class="architecture-benefit-text">
+            <strong>Result:</strong> Researchers query the database through a secure, serverless API without managing infrastructure or credentials
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 15: Live Demo -->
+  <section data-label="15 Demo" aria-label="Slide 15: Live Demo - Querying the SnowEx Database">
+    <div class="slide-demo">
+
+      <h1 class="demo-main-text">Demo</h1>
+
+      <p class="demo-subtitle">Querying the SnowEx Database</p>
+
+      <p class="demo-context">
+        Watch how researchers query snow measurements through the Lambda API — no credentials, no infrastructure setup
+      </p>
+
+      <div class="demo-transition-note">
+        <span class="demo-arrow">→</span>
+        <span>Switching to Jupyter Notebook</span>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 16: Limitations in Practice -->
+  <section data-label="16 Limitations" aria-label="Slide 16: When Lambda Isn't Enough">
+    <div class="slide-limitations-practice">
+
+      <!-- Top: purple band with title -->
+      <div class="limitations-practice-top">
+        <p class="limitations-practice-eyebrow">Real-World Constraints</p>
+        <h1 class="limitations-practice-title">When Lambda Isn't Enough</h1>
+      </div>
+
+      <!-- Content: side-by-side problem and solution -->
+      <div class="limitations-practice-content">
+
+        <!-- Left: Standard Query -->
+        <div class="approach-panel problem">
+          <div class="approach-header">
+            <h2 class="approach-title">Standard Query</h2>
+          </div>
+
+          <div class="code-block-container">
+<span class="code-comment"># Query Grand Mesa magnaprobe data</span>
+<br>
+data = client.<span style="color: #6f42c1;">get_point_measurements</span>(
+    campaign=<span style="color: #d73a49;">"Grand Mesa 2020"</span>,
+    instrument=<span style="color: #d73a49;">"magnaprobe"</span>,
+    limit=<span style="color: #d73a49;">500</span>
+)
+          </div>
+
+          <div style="margin-top: 24px;">
+            <h3 style="font-family: 'Open Sans', sans-serif; font-size: 28px; font-weight: 700; color: var(--uw-spirit-purple); margin-bottom: 16px;">Sometimes more complex queries are needed</h3>
+            <ul style="font-family: 'Open Sans', sans-serif; font-size: 24px; color: #333333; line-height: 1.6; list-style-position: inside;">
+              <li>Spatial joins (ST_DWithin)</li>
+              <li>Multi-table queries</li>
+              <li>GROUP BY aggregations</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Right: Raw SQL -->
+        <div class="approach-panel solution">
+          <div class="approach-header">
+            <h2 class="approach-title">Use Raw SQL for Complex Queries</h2>
+          </div>
+
+          <div class="code-block-container">
+<span class="code-comment"># Execute custom SQL with PostGIS</span>
+<br>
+data = client.<span style="color: #6f42c1;">query</span>("""
+    <span style="color: #0066cc;">SELECT</span> p.site_name,
+           <span style="color: #0066cc;">AVG</span>(m.depth) <span style="color: #0066cc;">AS</span> avg_depth
+    <span style="color: #0066cc;">FROM</span> snow_pits p
+    <span style="color: #0066cc;">JOIN</span> point_measurements m
+      <span style="color: #0066cc;">ON</span> <span style="color: #6f42c1;">ST_DWithin</span>(p.geom, m.geom, 10)
+      <span style="color: #0066cc;">AND</span> p.date = m.date
+    <span style="color: #0066cc;">WHERE</span> p.campaign = <span style="color: #d73a49;">'Grand Mesa 2020'</span>
+    <span style="color: #0066cc;">GROUP BY</span> p.site_name
+""")
+          </div>
+
+          <div class="solution-note">
+            <p class="solution-note-text">✓ Full PostGIS spatial functions<br>✓ JOIN across tables<br>✓ Aggregate with GROUP BY</p>
+          </div>
         </div>
 
       </div>

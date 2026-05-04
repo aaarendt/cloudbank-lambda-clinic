@@ -1,0 +1,28 @@
+# Backup Assets for Live Demo
+
+Place backup screenshots here for emergency fallback during recording:
+
+- `demo-output-dataframe.png` — Screenshot of the DataFrame output (Cell 4)
+- `demo-output-plot.png` — Screenshot of the scatter plot (Cell 5)
+
+Generate these by running the notebook once before recording and taking screenshots.
+
+## How to Generate Backups
+
+1. Run the notebook completely
+2. Screenshot Cell 4 output (DataFrame with 5 rows visible)
+3. Screenshot Cell 5 output (full scatter plot with colorbar)
+4. Save as PNG files in this directory
+5. During recording, have these open in a separate window for quick access
+
+## When to Use Backups
+
+- Lambda function times out or returns an error
+- Network connectivity issues during recording
+- Second retry also fails
+
+## Emergency Script
+
+If you need to use backups:
+
+> "I have the expected output saved here [show screenshot]. You can see the DataFrame returns 500 measurements with date, depth, latitude, longitude. And here's the spatial plot [show plot screenshot] — darker blue indicates deeper snow. The key point is the simplicity of the API — just a few lines of code to go from Lambda function to visualization."

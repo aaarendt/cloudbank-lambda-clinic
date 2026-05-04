@@ -2,3 +2,5 @@ fonts/
 preview/
 ui_kits/
 uploads/
+
+.claude/worktrees/*

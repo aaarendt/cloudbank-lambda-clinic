@@ -11,8 +11,13 @@
 - [X] 07 - What Lambda is NOT good for
 - [X] 08 — Technical Explanation of Lambda
 - [X] 09 - Why we need a container 
-- [X] 10 — The Dockerfile
-- [X] 11 — The Handler Function
+- [X] 10 — The Handler Function
+- [X] 11 — The Dockerfile
+- [X] 12 — Deploying to ECR
+- [X] 13 — Making Lambda Accessible
+- [X] 14 — SnowEx Lambda Architecture Overview
+- [X] 15 — Live Demo
+- [X] 16 — When Lambda Isn't Enough
 ---
 
 ## Slide Notes
@@ -91,57 +96,91 @@ container image. ECR (Elastic Container Registry) is where AWS stores those
  images.
 - use logos in assets folder for all the named packages in this slide
 
-### 10 — The Dockerfile
-- Code slide on dark background with syntax highlighting
-- Show real Dockerfile for scientific Python Lambda
-- Four key sections annotated: base image, dependencies, function code, handler
-- GitHub link to full code: github.com/SnowEx/snowexsql/tree/master/deployment
-
-### 11 — The Handler Function
+### 10 — The Handler Function
 - Code slide showing the Python handler function (entry point)
-- Explain event (incoming data from API Gateway) and context (runtime info)
-- Show database connection with SQLAlchemy — standard Python, not Lambda-specific
-- Return format: dict with statusCode and body for API Gateway
-- Key message: "This is just normal Python — no proprietary Lambda SDK required"
+- KEY POINT: Uses AWS Secrets Manager for secure credential handling — no hardcoded passwords
+- Fetches credentials at runtime, writes temporary file to /tmp/
+- Uses snowexsql package's db.get_db() — same code works locally and in Lambda
+- Action-based handling pattern for different query types
+- Shows simplified version of actual lambda_handler.py from GitHub
+
+### 11 — The Dockerfile
+- Code slide with light theme (white background, light gray code panels)
+- Shows actual Dockerfile from GitHub: public.ecr.aws/lambda/python:3.12 base
+- COPY snowexsql/ package and requirements-lambda.txt
+- Handler: snowexsql.lambda_handler.lambda_handler
+- Requirements panel shows actual dependencies with version constraints
+- Arrow connects requirements file reference to actual contents
+- GitHub link: github.com/SnowEx/snowexsql
 
 ### 12 — Deploying to ECR
 - Build & push commands.
 - Don't execute live — show commands, explain steps.
 - Note: pre-built image already in ECR for demo.
 
-### 13 — Wiring Up API Gateway
-- Connecting API Gateway to the Lambda function.
-- Key config decisions to highlight.
+### 13 — Making Lambda Accessible
+- Configuration panel showing Function URL setup in Lambda Console
+- Three access control options: Public, AWS IAM (highlighted), API Key
+- Function URL displayed beneath AWS IAM card only
+- "Why AWS IAM?" section with bullet points:
+  - No credential distribution
+  - Audit trail via CloudTrail
+  - Granular IAM permissions
+  - Automatic credential rotation
+  - Defense in depth security
 
 ### 14 — SnowEx Lambda Architecture Overview
-- show the AWS-configuration-new.svg figure again, but now include callouts
-that help solidify the learning about the configuration based on the past 3 slides
+- Central architecture diagram (AWS-configuration-new.svg)
+- Four numbered callouts explaining each component:
+  1. Container Image: Built with Dockerfile, stored in ECR
+  2. Lambda Handler: Retrieves credentials from Secrets Manager, executes queries
+  3. Function URL: HTTPS endpoint with AWS IAM authentication
+  4. PostgreSQL Database: Running on EC2, credentials in Secrets Manager
+- Key benefit banner: Secure, serverless API without infrastructure management
 
 ### 15 — Live Demo
-- Full-bleed "DEMO" slide — minimal text, signals transition to screen share.
-- Pre-built image already in ECR.
-- Demo: query the SnowEx database through the Lambda API endpoint.
-- Budget for cold start delays.
+- Dark purple transition slide with gold accent bar
+- Large centered "DEMO" text (120px, white)
+- Subtitle: "Querying the SnowEx Database" (42px, gold)
+- Context text explaining what viewers will see
+- Bottom note: "→ Switching to Jupyter Notebook" (28px, cream)
+- Demo plan:
+  - Import SnowExLambdaClient (no credentials needed!)
+  - Query Grand Mesa 2020 magnaprobe data (limit=500)
+  - Display pandas DataFrame
+  - Create scatter plot colored by snow depth
+  - Narrate cold start if it occurs
+  - Total time: ~2-3 minutes
 
-### 15 — Limitations
-- Honest constraints:
-  - 15-minute execution limit
-  - Constrained memory/storage
-  - Cold start latency
-  - Packaging scientific Python is non-trivial
-  - Not a replacement for batch compute or HPC
-- Correct expectation: "serverless ≠ I can run my analysis without a server"
+### 16 — When to Use Raw SQL
+- Two-column layout: Problem vs Solution
+- Left side (Complex Query Need):
+  - Example: "Find average magnaprobe depth within 10m of each snow pit"
+  - List what API doesn't support:
+    - Spatial joins (ST_DWithin)
+    - Multi-table queries
+    - GROUP BY aggregations
+  - Note: Helper methods can't do complex spatial + temporal joins
+- Right side (Use Raw SQL):
+  - Code example: `client.query()` with PostGIS spatial join
+  - Shows ST_DWithin spatial function
+  - JOIN across snow_pits and point_measurements tables
+  - GROUP BY with AVG aggregation
+  - SQL syntax highlighted (keywords in blue, functions in purple, strings in red)
+  - Benefits: Full PostGIS functions, JOIN across tables, aggregate with GROUP BY
+- Key message banner:
+  - "Use client.query() for complex queries — when helper methods don't support spatial joins, aggregations, or multi-table operations"
 
 ### 17 — What This Pattern Enables
 - Transferable use cases across disciplines: genomics, climate science, hydrology, remote sensing.
 - "Lambda fills the gap between Jupyter notebook and full cloud deployment."
 
-### 14 — CloudBank-Specific Setup
+### 18 — CloudBank-Specific Setup
 - IAM roles and permissions under CloudBank accounts.
 - Credit usage notes.
 - Account-specific gotchas.
 
-### 18 — Resources & Next Steps
+### 19 — Resources & Next Steps
 - Links: snowexsql, CloudBank docs, AWS Lambda docs, eScience Institute.
 - How to get help: CloudBank support, office hours.
 - Q&A prompt.
