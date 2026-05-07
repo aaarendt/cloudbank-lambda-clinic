@@ -19,8 +19,9 @@
 - [X] 15 — SnowEx Lambda Architecture Overview
 - [X] 16 — Live Demo
 - [X] 17 — When Lambda Isn't Enough
-- [ ] 18 — What This Pattern Enables (skipped for now)
+- [X] 18 — What This Pattern Enables
 - [X] 19 — CloudBank-Specific Setup
+- [X] 20 — Resources & Next Steps
 ---
 
 ## Slide Notes

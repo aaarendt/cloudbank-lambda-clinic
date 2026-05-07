@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1760 560" width="1760" height="560" font-family="'Open Sans', Arial, sans-serif" aria-label="SnowEx database entity-relationship diagram showing three groups: lookup tables, core data tables, and observation hierarchy">
+  <title>SnowEx Database Schema</title>
+  <defs>
+    <!-- Arrow marker for relationship lines -->
+    <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#ffc700"/>
+    </marker>
+    <marker id="crow-many" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto">
+      <path d="M2,5 L10,1 M2,5 L10,9 M0,5 L4,5" stroke="#ffc700" stroke-width="1.5" fill="none"/>
+    </marker>
+    <marker id="crow-one" markerWidth="8" markerHeight="10" refX="6" refY="5" orient="auto">
+      <line x1="6" y1="0" x2="6" y2="10" stroke="#ffc700" stroke-width="1.5"/>
+      <line x1="3" y1="0" x2="3" y2="10" stroke="#ffc700" stroke-width="1.5"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1760" height="560" fill="#f8f8f8" rx="8"/>
+
+  <!-- ─────────────────────────────────────────────────
+       GROUP LABELS
+  ───────────────────────────────────────────────── -->
+
+  <!-- Lookup tables group label -->
+  <rect x="20" y="16" width="200" height="30" fill="none"/>
+  <text x="30" y="38" font-size="18" font-weight="700" fill="#4b2e83" letter-spacing="2" text-transform="uppercase" font-family="'Encode Sans', Arial, sans-serif">LOOKUP TABLES</text>
+  <line x1="30" y1="44" x2="660" y2="44" stroke="#4b2e83" stroke-width="1" stroke-dasharray="4 3" opacity="0.3"/>
+
+  <!-- Core data group label -->
+  <text x="700" y="38" font-size="18" font-weight="700" fill="#4b2e83" letter-spacing="2" font-family="'Encode Sans', Arial, sans-serif">CORE DATA</text>
+  <line x1="700" y1="44" x2="1000" y2="44" stroke="#4b2e83" stroke-width="1" stroke-dasharray="4 3" opacity="0.3"/>
+
+  <!-- Observation hierarchy group label -->
+  <text x="1040" y="38" font-size="18" font-weight="700" fill="#4b2e83" letter-spacing="2" font-family="'Encode Sans', Arial, sans-serif">OBSERVATION HIERARCHY</text>
+  <line x1="1040" y1="44" x2="1740" y2="44" stroke="#4b2e83" stroke-width="1" stroke-dasharray="4 3" opacity="0.3"/>
+
+  <!-- ─────────────────────────────────────────────────
+       LOOKUP TABLES (top row, x: 20–660)
+  ───────────────────────────────────────────────── -->
+
+  <!-- campaigns -->
+  <g id="tbl-campaigns">
+    <rect x="20" y="60" width="190" height="106" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="20" y="60" width="190" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="20" y="84" width="190" height="12" fill="#4b2e83"/>
+    <text x="115" y="84" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">campaigns</text>
+    <text x="32" y="118" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="32" y="138" font-size="14" fill="#555">name  TEXT</text>
+    <text x="32" y="158" font-size="14" fill="#555">description  TEXT</text>
+  </g>
+
+  <!-- observers -->
+  <g id="tbl-observers">
+    <rect x="230" y="60" width="190" height="90" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="230" y="60" width="190" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="230" y="84" width="190" height="12" fill="#4b2e83"/>
+    <text x="325" y="84" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">observers</text>
+    <text x="242" y="118" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="242" y="138" font-size="14" fill="#555">name  TEXT</text>
+  </g>
+
+  <!-- instruments -->
+  <g id="tbl-instruments">
+    <rect x="20" y="200" width="190" height="106" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="20" y="200" width="190" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="20" y="224" width="190" height="12" fill="#4b2e83"/>
+    <text x="115" y="224" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">instruments</text>
+    <text x="32" y="258" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="32" y="278" font-size="14" fill="#555">name  TEXT</text>
+    <text x="32" y="298" font-size="14" fill="#555">model  TEXT</text>
+  </g>
+
+  <!-- measurement_type -->
+  <g id="tbl-mtype">
+    <rect x="230" y="200" width="190" height="106" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="230" y="200" width="190" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="230" y="224" width="190" height="12" fill="#4b2e83"/>
+    <text x="325" y="224" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">measurement_type</text>
+    <text x="242" y="258" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="242" y="278" font-size="14" fill="#555">name  TEXT</text>
+    <text x="242" y="298" font-size="14" fill="#555">units  TEXT</text>
+  </g>
+
+  <!-- dois -->
+  <g id="tbl-dois">
+    <rect x="450" y="60" width="190" height="90" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="450" y="60" width="190" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="450" y="84" width="190" height="12" fill="#4b2e83"/>
+    <text x="545" y="84" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">dois</text>
+    <text x="462" y="118" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="462" y="138" font-size="14" fill="#555">doi  TEXT</text>
+  </g>
+
+  <!-- ─────────────────────────────────────────────────
+       CORE DATA TABLES (centre, x: 700–1000)
+  ───────────────────────────────────────────────── -->
+
+  <!-- sites -->
+  <g id="tbl-sites">
+    <rect x="700" y="60" width="210" height="140" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="700" y="60" width="210" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="700" y="84" width="210" height="12" fill="#4b2e83"/>
+    <text x="805" y="84" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">sites</text>
+    <text x="712" y="118" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="712" y="138" font-size="14" fill="#555">geom  PostGIS Point</text>
+    <text x="712" y="158" font-size="14" fill="#555">datetime  TIMESTAMP</text>
+    <text x="712" y="178" font-size="14" fill="#8855bb">campaign_id  FK</text>
+  </g>
+
+  <!-- layers -->
+  <g id="tbl-layers">
+    <rect x="700" y="240" width="210" height="140" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="700" y="240" width="210" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="700" y="264" width="210" height="12" fill="#4b2e83"/>
+    <text x="805" y="264" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">layers</text>
+    <text x="712" y="298" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="712" y="318" font-size="14" fill="#555">depth  FLOAT (cm)</text>
+    <text x="712" y="338" font-size="14" fill="#555">value  TEXT</text>
+    <text x="712" y="358" font-size="14" fill="#8855bb">site_id  FK</text>
+  </g>
+
+  <!-- ─────────────────────────────────────────────────
+       OBSERVATION HIERARCHY (right, x: 1040–1740)
+  ───────────────────────────────────────────────── -->
+
+  <!-- campaign_observations -->
+  <g id="tbl-campobs">
+    <rect x="1040" y="150" width="240" height="172" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="1040" y="150" width="240" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="1040" y="174" width="240" height="12" fill="#4b2e83"/>
+    <text x="1160" y="174" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">campaign_observations</text>
+    <text x="1052" y="208" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="1052" y="228" font-size="14" fill="#555">date  DATE</text>
+    <text x="1052" y="248" font-size="14" fill="#555">type  TEXT (discriminator)</text>
+    <text x="1052" y="268" font-size="14" fill="#8855bb">campaign_id  FK</text>
+    <text x="1052" y="288" font-size="14" fill="#8855bb">instrument_id  FK</text>
+    <text x="1052" y="308" font-size="14" fill="#8855bb">observers_id  FK</text>
+  </g>
+
+  <!-- points -->
+  <g id="tbl-points">
+    <rect x="1370" y="80" width="210" height="140" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="1370" y="80" width="210" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="1370" y="104" width="210" height="12" fill="#4b2e83"/>
+    <text x="1475" y="104" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">points</text>
+    <text x="1382" y="138" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="1382" y="158" font-size="14" fill="#555">value  FLOAT</text>
+    <text x="1382" y="178" font-size="14" fill="#555">geom  PostGIS Point</text>
+    <text x="1382" y="198" font-size="14" fill="#8855bb">observation_id  FK</text>
+  </g>
+
+  <!-- images -->
+  <g id="tbl-images">
+    <rect x="1370" y="280" width="210" height="122" rx="5" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <rect x="1370" y="280" width="210" height="36" rx="5" fill="#4b2e83"/>
+    <rect x="1370" y="304" width="210" height="12" fill="#4b2e83"/>
+    <text x="1475" y="304" text-anchor="middle" font-size="17" font-weight="700" fill="white" font-family="'Encode Sans', Arial, sans-serif">images</text>
+    <text x="1382" y="338" font-size="14" fill="#555">id  INTEGER (PK)</text>
+    <text x="1382" y="358" font-size="14" fill="#555">raster  PostGIS Raster</text>
+    <text x="1382" y="378" font-size="14" fill="#8855bb">observation_id  FK</text>
+  </g>
+
+  <!-- ─────────────────────────────────────────────────
+       RELATIONSHIP LINES
+  ───────────────────────────────────────────────── -->
+
+  <!-- campaigns → sites  (one-to-many) -->
+  <line x1="210" y1="113" x2="700" y2="155" stroke="#ffc700" stroke-width="1.8" stroke-dasharray="5 3" opacity="0.8"/>
+  <circle cx="210" cy="113" r="4" fill="#ffc700"/>
+  <circle cx="700" cy="155" r="4" fill="#ffc700"/>
+
+  <!-- campaigns → campaign_observations  (one-to-many) -->
+  <path d="M210 113 Q 600 100 1040 236" stroke="#ffc700" stroke-width="1.8" stroke-dasharray="5 3" fill="none" opacity="0.8"/>
+  <circle cx="1040" cy="236" r="4" fill="#ffc700"/>
+
+  <!-- sites → layers  (one-to-many) -->
+  <line x1="805" y1="200" x2="805" y2="240" stroke="#ffc700" stroke-width="1.8" opacity="0.9"/>
+  <circle cx="805" cy="200" r="4" fill="#ffc700"/>
+  <circle cx="805" cy="240" r="4" fill="#ffc700"/>
+
+  <!-- sites → dois -->
+  <line x1="830" y1="60" x2="545" y2="150" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+
+  <!-- instruments → layers -->
+  <line x1="420" y1="253" x2="700" y2="318" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+  <circle cx="420" cy="253" r="4" fill="#ffc700"/>
+
+  <!-- instruments → campaign_observations -->
+  <path d="M420 253 Q 700 180 1040 262" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.6"/>
+
+  <!-- measurement_type → layers -->
+  <line x1="420" y1="270" x2="700" y2="340" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+
+  <!-- measurement_type → points -->
+  <path d="M420 270 Q 900 160 1370 168" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.5"/>
+
+  <!-- observers → campaign_observations -->
+  <path d="M420 95 Q 730 70 1040 268" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.6"/>
+  <circle cx="420" cy="95" r="4" fill="#ffc700"/>
+
+  <!-- dois → campaign_observations -->
+  <path d="M640 95 Q 840 90 1040 248" stroke="#ffc700" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.6"/>
+  <circle cx="640" cy="95" r="4" fill="#ffc700"/>
+
+  <!-- campaign_observations → points  (one-to-many) -->
+  <line x1="1280" y1="220" x2="1370" y2="180" stroke="#ffc700" stroke-width="2" opacity="0.9"/>
+  <circle cx="1280" cy="220" r="5" fill="#ffc700"/>
+  <circle cx="1370" cy="180" r="5" fill="#ffc700"/>
+
+  <!-- campaign_observations → images  (one-to-many) -->
+  <line x1="1280" y1="260" x2="1370" y2="330" stroke="#ffc700" stroke-width="2" opacity="0.9"/>
+  <circle cx="1280" cy="260" r="5" fill="#ffc700"/>
+  <circle cx="1370" cy="330" r="5" fill="#ffc700"/>
+
+  <!-- ─────────────────────────────────────────────────
+       FK LABELS ON KEY LINES
+  ───────────────────────────────────────────────── -->
+  <text x="808" y="225" font-size="12" fill="#4b2e83" font-weight="600">site_id</text>
+  <text x="1295" y="210" font-size="12" fill="#4b2e83" font-weight="600">observation_id</text>
+  <text x="1295" y="285" font-size="12" fill="#4b2e83" font-weight="600">observation_id</text>
+
+  <!-- ─────────────────────────────────────────────────
+       LEGEND
+  ───────────────────────────────────────────────── -->
+  <g transform="translate(30, 500)">
+    <line x1="0" y1="10" x2="30" y2="10" stroke="#ffc700" stroke-width="2" stroke-dasharray="5 3"/>
+    <circle cx="0" cy="10" r="4" fill="#ffc700"/>
+    <circle cx="30" cy="10" r="4" fill="#ffc700"/>
+    <text x="40" y="15" font-size="14" fill="#555">Foreign key relationship</text>
+    <rect x="200" y="2" width="14" height="14" rx="2" fill="#4b2e83"/>
+    <text x="222" y="15" font-size="14" fill="#555">Table header</text>
+    <rect x="340" y="2" width="14" height="14" rx="2" fill="white" stroke="#e0e0e0" stroke-width="1.5"/>
+    <text x="362" y="15" font-size="14" fill="#8855bb">■</text>
+    <text x="380" y="15" font-size="14" fill="#555">FK column</text>
+  </g>
+
+</svg>
