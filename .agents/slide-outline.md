@@ -15,9 +15,12 @@
 - [X] 11 — The Dockerfile
 - [X] 12 — Deploying to ECR
 - [X] 13 — Making Lambda Accessible
-- [X] 14 — SnowEx Lambda Architecture Overview
-- [X] 15 — Live Demo
-- [X] 16 — When Lambda Isn't Enough
+- [X] 14 — The Lambda Client
+- [X] 15 — SnowEx Lambda Architecture Overview
+- [X] 16 — Live Demo
+- [X] 17 — When Lambda Isn't Enough
+- [ ] 18 — What This Pattern Enables (skipped for now)
+- [X] 19 — CloudBank-Specific Setup
 ---
 
 ## Slide Notes
@@ -129,7 +132,16 @@ container image. ECR (Elastic Container Registry) is where AWS stores those
   - Automatic credential rotation
   - Defense in depth security
 
-### 14 — SnowEx Lambda Architecture Overview
+### 14 — The Lambda Client
+- Two-column layout: dark code panel (left) + three callout cards (right)
+- Code panel shows: install, instantiate, helper method call, raw SQL
+- Callout 1 (green): No AWS credentials — plain HTTPS, works from any notebook
+- Callout 2 (gold): Minimal dependencies — client needs only requests + pandas
+- Callout 3 (purple): Drop-in replacement — mirrors api.py interface exactly
+- Bottom banner: "The researcher never sees Lambda — they just call Python methods that happen to route through AWS"
+- Source: github.com/SnowEx/snowexsql/blob/master/snowexsql/lambda_client.py
+
+### 15 — SnowEx Lambda Architecture Overview
 - Central architecture diagram (AWS-configuration-new.svg)
 - Four numbered callouts explaining each component:
   1. Container Image: Built with Dockerfile, stored in ECR

@@ -6,6 +6,10 @@
   <title>Lambda as a Tool for Accessing Scientific Databases</title>
   <link rel="stylesheet" href="colors_and_type.css" />
   <script src="deck-stage.js"></script>
+  <!-- Prism.js syntax highlighting (JS only — tokens styled below) -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
 
   <script type="application/json" id="speaker-notes">
   [
@@ -22,9 +26,11 @@
     "Now let's look at the actual Python code that runs inside the Lambda function — the handler. This is where the real work happens. When API Gateway receives a query request, it packages that request into an event object and passes it to this handler function. The handler takes two arguments. The first is event, which contains all the incoming data — in our case, that's the database query parameters sent by the user. The second is context, which gives you runtime information like how much time you have left before Lambda times out. We start by parsing the query parameters from the event. Then we use SQLAlchemy to connect to our PostgreSQL database on EC2. We execute the query, fetch the results, and return them as JSON. Lambda automatically handles the HTTP response, so we just return a dictionary with a status code and a body. The key point here is that this is just normal Python. You're not learning a new framework or a proprietary API. If you can write a function that connects to a database and returns JSON, you can write a Lambda function. The only Lambda-specific part is the function signature — event and context — and even that is straightforward once you see it once.",
     "Now that we have our Dockerfile and handler code, we need to build the container image and push it to AWS. This is where ECR comes in — Elastic Container Registry. Think of it as Docker Hub, but inside your AWS account. The deployment process has three main steps. First, you build the Docker image locally using docker build. This reads your Dockerfile, installs all your dependencies, and packages everything into a container image. Second, you tag the image with your ECR repository URL. This tells Docker where you want to push the image. Third, you push the image to ECR using docker push. Once it's in ECR, Lambda can pull it and run it. I'm not going to execute these commands live because the build step can take a few minutes — we're installing NumPy, Pandas, and all those scientific Python libraries, which takes time. But I want you to see the commands so you know what the workflow looks like. For today's demo, I've already built and pushed an image to ECR, so we can focus on the Lambda configuration and actually querying the database.",
     "The last step is making the Lambda function accessible to users. Right now, the function exists inside AWS, but nobody can reach it. It's like having a phone without a phone number. What we need is a way for researchers to send queries from their laptop, from a Jupyter notebook, from anywhere, and have those queries reach the Lambda function. AWS makes this simple — they give your Lambda function a web address, just like any website has a URL. You enable this feature in the Lambda console, and AWS hands you an HTTPS URL. Now anyone with that URL can send a query. Of course, you don't want just anyone querying your database, so you set access controls. You can make it completely public, you can require a password, or you can require AWS credentials. For SnowEx, we require AWS credentials, which means only people we've granted permission can run queries. Once that's set up, the workflow is simple. A researcher sends a query from their Python script. That query goes to the URL. AWS receives it, invokes your Lambda function, the function queries the database, and the results come back. That's it. No servers to manage, no VPN to configure, no SSH keys to distribute. Just a URL.",
+    "Now let's look at how a query actually travels from a researcher's notebook to the database. There are two sides to this architecture — the client side, which is everything running on the researcher's laptop, and the server side, which is everything running inside the Lambda container on AWS. On the client side, a researcher calls a method on SnowExLambdaClient — something like client.point_measurements.from_filter with a campaign name and a limit. The client serializes that into a JSON payload and sends it as an HTTPS POST request to the Lambda Function URL. That's all it does. It never touches a database directly. At the AWS boundary, that HTTPS request crosses from the researcher's machine into our Lambda function. The Lambda handler receives the JSON payload, reads the action field to understand what kind of query is being requested, and then invokes the appropriate method from api.py. And here's the key insight I want you to take from this diagram: api.py is the same code that runs when you access the database directly, without Lambda. The SQL query construction, the table joins, the filter logic — none of that is duplicated in the client or in the handler. It all lives in api.py, in one place. Lambda is just the transport layer. Finally, api.py hands the query to SQLAlchemy, which executes it against PostgreSQL running on our EC2 instance, and the results travel back through the same chain in reverse. The researcher gets a pandas DataFrame. The entire round trip is invisible to them — from their perspective, they just called a Python method.",
     "Now let's step back and look at the complete architecture we've just built. This diagram shows all the pieces working together. First, we have our container image stored in ECR — that's the package we built with our Dockerfile containing all our scientific Python dependencies and our handler code. Second, the Lambda function itself pulls that container image and runs it on demand. When a query comes in, Lambda retrieves database credentials from Secrets Manager, connects to the PostgreSQL database running on EC2, executes the SQL query, and returns the results. Third, we have the Function URL that acts as the entry point — researchers send HTTPS requests to that URL, and AWS IAM authentication ensures only authorized users can invoke the function. Finally, the database itself lives on an EC2 instance with credentials securely managed by Secrets Manager, so we never hardcode passwords. The result is a secure, serverless API that lets researchers query the database without managing any infrastructure or handling credentials themselves. This pattern is transferable — you could use the exact same architecture for genomics databases, climate model outputs, hydrology data, or any other scientific dataset that lives in PostgreSQL. Lambda fills the gap between a quick Jupyter notebook prototype and a full production deployment. It gives you the benefits of cloud infrastructure without the operational overhead.",
     "Alright, let's see this in action. I'm switching over to a Jupyter notebook now. The first thing I want to show you is how simple the client setup is. No config files, no credential management — just import the client and instantiate it. Behind the scenes, this is hitting our Lambda function URL with AWS IAM authentication, but from the researcher's perspective, it just works. Now I'll query snow depth measurements from the Grand Mesa campaign in February 2020. Grand Mesa is one of our core sites in Colorado. I'm asking for magnaprobe data — that's a handheld GPS-enabled probe that field teams use to measure snow depth. I'm limiting it to 500 points so this runs quickly. We might see a few seconds of delay here — that's the Lambda cold start I mentioned earlier. The first invocation warms up the container. Great, we got our data back. You can see it's just a pandas DataFrame with date, depth, latitude, longitude. And now I can plot it — a quick scatter plot colored by snow depth. Blues for shallow snow, darker blues for deeper snow. This is real data from the field, pulled from our PostgreSQL database on EC2, routed through Lambda, and displayed here with zero infrastructure setup on my end. That's the pattern we've been building toward.",
-    "Now let's talk about when you need to go beyond the helper methods. The API methods like get_point_measurements work great for standard queries — filtering by campaign, instrument, date, or location. But sometimes you need something more complex. For example, say you want to find the average magnaprobe snow depth within 10 meters of each snow pit on the same day. That's a spatial join using PostGIS functions, combined with a date match and a GROUP BY aggregation. The helper methods can't do that. This is where client.query comes in. You can write raw SQL with full access to PostGIS spatial functions, JOIN across multiple tables, and use aggregate functions like AVG or COUNT. You're still using the Lambda API — same secure, credential-free access — but now you have the full power of SQL and PostGIS. The key thing to understand is that Lambda still has the same constraints. If your query takes more than 15 minutes or returns more than 6 megabytes, it will fail. So raw SQL isn't a magic solution for bulk exports. It's a tool for complex queries that the helper methods don't support. For most use cases, stick with the helper methods — they're simpler and less error-prone. But when you need spatial joins, multi-table queries, or custom aggregations, client.query gives you that flexibility."
+    "Now let's talk about when you need to go beyond the helper methods. The API methods like get_point_measurements work great for standard queries — filtering by campaign, instrument, date, or location. But sometimes you need something more complex. For example, say you want to find the average magnaprobe snow depth within 10 meters of each snow pit on the same day. That's a spatial join using PostGIS functions, combined with a date match and a GROUP BY aggregation. The helper methods can't do that. This is where client.query comes in. You can write raw SQL with full access to PostGIS spatial functions, JOIN across multiple tables, and use aggregate functions like AVG or COUNT. You're still using the Lambda API — same secure, credential-free access — but now you have the full power of SQL and PostGIS. The key thing to understand is that Lambda still has the same constraints. If your query takes more than 15 minutes or returns more than 6 megabytes, it will fail. So raw SQL isn't a magic solution for bulk exports. It's a tool for complex queries that the helper methods don't support. For most use cases, stick with the helper methods — they're simpler and less error-prone. But when you need spatial joins, multi-table queries, or custom aggregations, client.query gives you that flexibility.",
+    "Now let's talk about what's specific to running this on a CloudBank account, because there are a few things that differ from a standard personal AWS account. The first is IAM permissions. CloudBank uses AWS Organizations, which means your account sits inside an organizational structure and may have default permission boundaries applied. You'll need permissions for Lambda, ECR, API Gateway, and Secrets Manager — and you'll need to assign an execution role to your Lambda function so it can read from Secrets Manager at runtime. Work with your CloudBank point of contact to request those roles. The second area is credit usage. Lambda itself is remarkably cheap — you're typically paying fractions of a cent per query. ECR storage is about ten cents per gigabyte per month. The real ongoing cost is your EC2 instance hosting the database, so get in the habit of stopping it when you're not actively using it. AWS Cost Explorer is your friend here — set a billing alert so you don't get surprised. Third, there are a few account-specific gotchas worth knowing. Lambda and your EC2 database instance must be in the same AWS region. You'll need to configure security groups so that Lambda's security group has outbound access to port 5432, which is the default PostgreSQL port. CloudBank accounts may also have region restrictions, so check with your administrator before assuming you can deploy to any region. Finally, make sure your container image architecture matches your Lambda configuration — x86_64 is the safe default. My advice is to test with a minimal query end-to-end before you invest time building out the full API. That way you catch connectivity or permission issues early."
   ]
   </script>
 
@@ -1444,11 +1450,17 @@
 
     .dockerfile-content {
       display: grid;
-      grid-template-columns: auto auto 320px;
+      grid-template-columns: 1fr 420px;
       gap: 24px;
       padding: 20px 80px 60px 80px;
       background: #ffffff;
       align-items: start;
+    }
+
+    .dockerfile-left {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
     .code-panel {
@@ -1457,9 +1469,9 @@
       border-radius: 8px;
       padding: 24px 28px;
       font-family: 'Courier New', monospace;
-      font-size: 24px;
+      font-size: 26px;
       line-height: 1.6;
-      color: #2d2d2d;
+      color: #111111;
       width: fit-content;
     }
 
@@ -1469,10 +1481,11 @@
       border-radius: 8px;
       padding: 24px 28px;
       font-family: 'Courier New', monospace;
-      font-size: 22px;
+      font-size: 26px;
       line-height: 1.6;
-      color: #2d2d2d;
+      color: #111111;
       position: relative;
+      width: fit-content;
     }
 
     .requirements-header {
@@ -1485,13 +1498,12 @@
     }
 
     .code-arrow {
-      position: absolute;
-      left: -30px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 56px;
-      color: var(--uw-spirit-gold);
-      font-weight: bold;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #111111;
+      margin-bottom: 10px;
+      display: block;
     }
 
     .code-line {
@@ -1499,8 +1511,8 @@
       white-space: pre;
     }
 
-    .code-comment {
-      color: #6a9955;
+    .handler-code-panel .code-comment {
+      color: #3d6b2e;
       font-style: italic;
     }
 
@@ -1529,7 +1541,7 @@
     .annotation-label {
       font-family: 'Encode Sans', sans-serif;
       font-weight: 700;
-      font-size: 18px;
+      font-size: 24px;
       color: var(--uw-spirit-purple);
       letter-spacing: 0.02em;
       text-transform: uppercase;
@@ -1538,7 +1550,7 @@
 
     .annotation-text {
       font-family: 'Open Sans', sans-serif;
-      font-size: 17px;
+      font-size: 24px;
       font-weight: 400;
       color: #333333;
       line-height: 1.35;
@@ -1603,7 +1615,7 @@
 
     .handler-content {
       display: grid;
-      grid-template-columns: 1fr 360px;
+      grid-template-columns: 1fr 420px;
       gap: 32px;
       padding: 20px 80px 40px 80px;
       background: #ffffff;
@@ -1616,9 +1628,9 @@
       padding: 24px 28px;
       overflow-y: auto;
       font-family: 'Courier New', monospace;
-      font-size: 22px;
+      font-size: 26px;
       line-height: 1.5;
-      color: #2d2d2d;
+      color: #111111;
     }
 
     .code-function {
@@ -1702,9 +1714,9 @@
       border-radius: 6px;
       padding: 20px 28px;
       font-family: 'Courier New', monospace;
-      font-size: 22px;
+      font-size: 26px;
       line-height: 1.5;
-      color: #2d2d2d;
+      color: #111111;
     }
 
     .command-description {
@@ -2292,7 +2304,250 @@
       color: var(--uw-spirit-purple);
     }
 
-    /* ── SLIDE 14: Architecture Overview ── */
+    /* ── SLIDE 14: Lambda Client Flow (vertical layout) ── */
+    .slide-lc-flow {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    .lc-flow-top {
+      background: var(--uw-spirit-purple);
+      padding: 28px 100px 24px 100px;
+      position: relative;
+    }
+    .lc-flow-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+    .lc-flow-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 14px;
+    }
+    .lc-flow-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 60px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    /* Outer diagram container: vertical stack */
+    .lc-diagram {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: hidden;
+    }
+
+    /* Each half-zone: horizontal row of nodes */
+    .lc-zone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 20px 60px 20px 60px;
+      flex: 1;
+    }
+    .lc-zone.client { background: #f2f2f4; }
+    .lc-zone.server { background: rgba(75, 46, 131, 0.07); }
+
+    .lc-zone-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #999999;
+      align-self: flex-start;
+    }
+    .lc-zone.server .lc-zone-label { color: rgba(75, 46, 131, 0.55); }
+
+    /* Row of node columns inside a zone */
+    .lc-nodes-row {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+      width: 100%;
+    }
+
+    .lc-node-col {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .lc-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 6px;
+      box-sizing: border-box;
+      background: #ffffff;
+      border: 2px solid #d0d0d0;
+      border-top: 6px solid #aaaaaa;
+      border-radius: 8px;
+      padding: 14px 14px;
+      width: 280px;
+      flex-shrink: 0;
+    }
+    .lc-node.handler-node { border-top-color: var(--uw-spirit-purple); }
+    .lc-node.api-node     { border-top-color: var(--uw-spirit-purple); }
+    .lc-node.db-node      { border-top-color: var(--uw-spirit-purple); }
+
+    .lc-node-col .lc-node-code {
+      width: 340px;
+      box-sizing: border-box;
+    }
+
+    .lc-node-label {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 26px;
+      color: #2d2d2d;
+      line-height: 1.2;
+    }
+
+    .lc-node-sub {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      color: #666666;
+      line-height: 1.3;
+    }
+
+    .lc-node-code {
+      background: #f5f5f5;
+      border: 1.5px solid #d0d0d0;
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 20px;
+      line-height: 1.5;
+      color: #2d2d2d;
+      white-space: pre;
+      text-align: left;
+      box-sizing: border-box;
+      margin: 0;
+      overflow: visible;
+    }
+    /* Prism token colours — applied inside .lc-node-code only */
+    .lc-node-code code {
+      display: block;
+      background: transparent;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+      white-space: inherit;
+      color: inherit;
+      padding: 0;
+    }
+    .lc-node-code .token.keyword     { color: #32006e; font-weight: 700; }
+    .lc-node-code .token.builtin     { color: #005a99; }
+    .lc-node-code .token.function    { color: #005a99; }
+    .lc-node-code .token.class-name  { color: #005a99; }
+    .lc-node-code .token.string      { color: #b01c00; }
+    .lc-node-code .token.number      { color: #b05e00; }
+    .lc-node-code .token.operator    { color: #32006e; }
+    .lc-node-code .token.punctuation { color: #555555; }
+    .lc-node-code .token.comment     { color: #666666; font-style: italic; }
+
+    /* Horizontal arrow between nodes within a zone */
+    .lc-arr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 26px 8px 0 8px;
+      flex-shrink: 0;
+    }
+    .lc-arr-glyph {
+      font-size: 30px;
+      color: var(--uw-spirit-gold);
+      font-weight: bold;
+      line-height: 1;
+    }
+    .lc-arr-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      color: #888888;
+      white-space: nowrap;
+    }
+
+    /* Horizontal AWS boundary bar between the two zones */
+    .lc-boundary {
+      height: 64px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      gap: 20px;
+    }
+    .lc-boundary::before {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      border-top: 3px dashed rgba(75, 46, 131, 0.30);
+    }
+    .lc-boundary-cross {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      background: #f8f8f8;
+      border: 2px solid #e0e0e0;
+      border-radius: 20px;
+      padding: 8px 20px;
+      position: relative;
+      z-index: 1;
+    }
+    .lc-boundary-cross-glyph {
+      font-size: 28px;
+      color: var(--uw-spirit-gold);
+      font-weight: bold;
+      line-height: 1;
+    }
+    .lc-boundary-cross-label {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--uw-spirit-purple);
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+    .lc-boundary-tag {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(75, 46, 131, 0.45);
+      position: relative;
+      z-index: 1;
+      background: #f8f8f8;
+      padding: 4px 12px;
+    }
+
+    /* ── SLIDE 15: Architecture Overview ── */
     .slide-architecture {
       width: 100%; height: 100%;
       background: #ffffff;
@@ -2603,7 +2858,7 @@
       overflow-x: auto;
     }
 
-    .code-comment {
+    .code-block-container .code-comment {
       color: #666666;
       font-style: italic;
     }
@@ -2658,6 +2913,143 @@
       color: var(--uw-spirit-purple);
       line-height: 1.5;
       text-align: center;
+      margin: 0;
+    }
+
+    /* ── SLIDE 18: CloudBank-Specific Setup ── */
+    .slide-cloudbank {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      position: relative;
+    }
+
+    .cloudbank-top {
+      background: var(--uw-spirit-purple);
+      padding: 52px 100px 48px 100px;
+      position: relative;
+    }
+    .cloudbank-top::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 8px;
+      background: var(--uw-spirit-gold);
+    }
+
+    .cloudbank-eyebrow {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-gold);
+      margin-bottom: 18px;
+    }
+
+    .cloudbank-title {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 900;
+      font-size: 64px;
+      line-height: 1.0;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .cloudbank-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 40px;
+      padding: 52px 80px 56px 80px;
+      align-items: start;
+    }
+
+    .cb-setup-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cb-setup-card-header {
+      background: var(--uw-spirit-purple);
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .cb-setup-card-icon {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      filter: brightness(0) invert(1);
+    }
+
+    .cb-setup-card-heading {
+      font-family: 'Encode Sans', sans-serif;
+      font-weight: 700;
+      font-size: 28px;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+
+    .cb-setup-card-body {
+      background: #fafafa;
+      padding: 24px 28px;
+    }
+
+    .cb-setup-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .cb-setup-list li {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 26px;
+      line-height: 1.45;
+      color: #222222;
+      padding-left: 28px;
+      position: relative;
+    }
+
+    .cb-setup-list li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: var(--uw-spirit-gold);
+      font-size: 20px;
+      top: 3px;
+    }
+
+    .cb-setup-list li strong {
+      color: var(--uw-spirit-purple);
+      font-weight: 700;
+    }
+
+    .cb-setup-note {
+      background: rgba(255, 199, 0, 0.12);
+      border-left: 4px solid var(--uw-spirit-gold);
+      border-radius: 4px;
+      padding: 14px 20px;
+      margin-top: 16px;
+    }
+
+    .cb-setup-note p {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--uw-spirit-purple);
+      line-height: 1.4;
       margin: 0;
     }
 
@@ -3217,8 +3609,11 @@
 
       <div class="dockerfile-content">
 
-        <!-- Dockerfile code panel -->
-        <div class="code-panel" role="img" aria-label="Dockerfile code for SnowEx Lambda function">
+        <!-- Left column: Dockerfile + Requirements stacked -->
+        <div class="dockerfile-left">
+
+          <!-- Dockerfile code panel -->
+          <div class="code-panel" role="img" aria-label="Dockerfile code for SnowEx Lambda function">
 <span class="code-line"><span class="code-keyword">FROM</span> <span class="code-string">public.ecr.aws/lambda/python:3.12</span></span>
 <span class="code-line"></span>
 <span class="code-line"><span class="code-comment"># Copy requirements and install dependencies</span></span>
@@ -3230,12 +3625,11 @@
 <span class="code-line"></span>
 <span class="code-line"><span class="code-comment"># Set the CMD to your handler</span></span>
 <span class="code-line"><span class="code-keyword">CMD</span> [<span class="code-string">"snowexsql.lambda_handler.lambda_handler"</span>]</span>
-        </div>
+          </div>
 
-        <!-- Requirements panel -->
-        <div class="requirements-panel">
-          <span class="code-arrow">→</span>
-          <div class="requirements-header">requirements-lambda.txt</div>
+          <!-- Requirements panel -->
+          <div class="requirements-panel">
+            <span class="code-arrow">requirements-lambda.txt</span>
 <span class="code-line">utm>=0.5.0,&lt;1.0</span>
 <span class="code-line">geoalchemy2>=0.6,&lt;1.0</span>
 <span class="code-line">shapely>=2.0.0,&lt;3.0</span>
@@ -3243,6 +3637,8 @@
 <span class="code-line">psycopg2-binary>=2.9.0</span>
 <span class="code-line">SQLAlchemy>=2.0.0</span>
 <span class="code-line">boto3>=1.26.0</span>
+          </div>
+
         </div>
 
         <!-- Annotations panel -->
@@ -3407,8 +3803,120 @@
   </section>
 
 
-  <!-- SLIDE 14: Architecture Overview -->
-  <section data-label="14 Architecture" aria-label="Slide 14: SnowEx Lambda Architecture Overview">
+  <!-- SLIDE 14: Lambda Client Flow -->
+  <section data-label="14 Lambda Client" aria-label="Slide 14: How a Query Travels Through the Lambda Client">
+    <div class="slide-lc-flow">
+
+      <!-- Top: purple band with title -->
+      <div class="lc-flow-top">
+        <p class="lc-flow-eyebrow">Client &middot; AWS Boundary &middot; Server</p>
+        <h1 class="lc-flow-title">How a Query Travels</h1>
+      </div>
+
+      <!-- Diagram -->
+      <div class="lc-diagram" role="img" aria-label="Flow diagram showing a query moving from Jupyter Notebook through SnowExLambdaClient across the AWS boundary to Lambda Handler, then to api.py, then to PostgreSQL on EC2">
+
+        <!-- Client zone -->
+        <div class="lc-zone client">
+          <div class="lc-zone-label">Your Laptop / Notebook</div>
+          <div class="lc-nodes-row">
+
+            <div class="lc-node-col">
+              <div class="lc-node">
+                <div class="lc-node-label">Jupyter Notebook</div>
+                <div class="lc-node-sub">researcher&rsquo;s query call</div>
+              </div>
+              <pre class="lc-node-code"><code class="language-python">df = client.snow_depth(
+    campaign="Grand Mesa",
+    limit=500)</code></pre>
+            </div>
+
+            <div class="lc-arr">
+              <span class="lc-arr-glyph">&rarr;</span>
+              <span class="lc-arr-label">method call</span>
+            </div>
+
+            <div class="lc-node-col">
+              <div class="lc-node">
+                <div class="lc-node-label" style="font-size:19px;">SnowExLambdaClient</div>
+                <div class="lc-node-sub">serializes &rarr; HTTP POST</div>
+              </div>
+              <pre class="lc-node-code">&rarr; JSON payload:
+  action: "snow_depth"
+  campaign: "Grand Mesa"
+  limit: 500</pre>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- AWS Boundary -->
+        <div class="lc-boundary" role="separator" aria-label="AWS Boundary">
+          <div class="lc-boundary-cross">
+            <span class="lc-boundary-cross-glyph">&darr;</span>
+            <span class="lc-boundary-cross-label">HTTPS POST</span>
+          </div>
+          <div class="lc-boundary-tag">AWS Boundary</div>
+        </div>
+
+        <!-- Server zone -->
+        <div class="lc-zone server">
+          <div class="lc-zone-label">Lambda Container &middot; AWS</div>
+          <div class="lc-nodes-row">
+
+            <div class="lc-node-col">
+              <div class="lc-node handler-node">
+                <div class="lc-node-label">lambda_handler.py</div>
+                <div class="lc-node-sub">routes the action</div>
+              </div>
+              <pre class="lc-node-code"><code class="language-python">action = "snow_depth"
+fn = ROUTES[action]
+return fn(**params)</code></pre>
+            </div>
+
+            <div class="lc-arr">
+              <span class="lc-arr-glyph">&rarr;</span>
+              <span class="lc-arr-label">invokes</span>
+            </div>
+
+            <div class="lc-node-col">
+              <div class="lc-node api-node">
+                <div class="lc-node-label">api.py</div>
+                <div class="lc-node-sub">builds SQL query</div>
+              </div>
+              <pre class="lc-node-code"><code class="language-sql">SELECT * FROM points
+WHERE campaign =
+  'Grand Mesa 2020'
+LIMIT 500</code></pre>
+            </div>
+
+            <div class="lc-arr">
+              <span class="lc-arr-glyph">&rarr;</span>
+              <span class="lc-arr-label">executes</span>
+            </div>
+
+            <div class="lc-node-col">
+              <div class="lc-node db-node">
+                <div class="lc-node-label">PostgreSQL</div>
+                <div class="lc-node-sub">on EC2 &middot; returns rows</div>
+              </div>
+              <pre class="lc-node-code">&rarr; 500 rows
+ depth | lat  | lon
+ 0.42  | 39.0 |-108.2
+ 0.38  | 39.1 |-108.1</pre>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SLIDE 15: Architecture Overview -->
+  <section data-label="15 Architecture" aria-label="Slide 15: SnowEx Lambda Architecture Overview">
     <div class="slide-architecture">
 
       <!-- Top: purple band with title -->
@@ -3476,7 +3984,7 @@
 
 
   <!-- SLIDE 15: Live Demo -->
-  <section data-label="15 Demo" aria-label="Slide 15: Live Demo - Querying the SnowEx Database">
+  <section data-label="16 Demo" aria-label="Slide 16: Live Demo - Querying the SnowEx Database">
     <div class="slide-demo">
 
       <h1 class="demo-main-text">Demo</h1>
@@ -3497,7 +4005,7 @@
 
 
   <!-- SLIDE 16: Limitations in Practice -->
-  <section data-label="16 Limitations" aria-label="Slide 16: When Lambda Isn't Enough">
+  <section data-label="17 Limitations" aria-label="Slide 17: When Lambda Isn't Enough">
     <div class="slide-limitations-practice">
 
       <!-- Top: purple band with title -->
@@ -3558,6 +4066,81 @@ data = client.<span style="color: #6f42c1;">query</span>("""
 
           <div class="solution-note">
             <p class="solution-note-text">✓ Full PostGIS spatial functions<br>✓ JOIN across tables<br>✓ Aggregate with GROUP BY</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SLIDE 18: CloudBank-Specific Setup -->
+  <section data-label="18 CloudBank Setup" aria-label="Slide 18: CloudBank-Specific Setup">
+    <div class="slide-cloudbank">
+
+      <!-- Top: purple band with title -->
+      <div class="cloudbank-top">
+        <p class="cloudbank-eyebrow">CloudBank Platform</p>
+        <h1 class="cloudbank-title">Setting Up Lambda on CloudBank</h1>
+      </div>
+
+      <!-- Three info cards -->
+      <div class="cloudbank-cards">
+
+        <!-- Card 1: IAM Permissions -->
+        <div class="cb-setup-card">
+          <div class="cb-setup-card-header">
+            <img class="cb-setup-card-icon" src="assets/AWS-IAM-logo.png" alt="" />
+            <h2 class="cb-setup-card-heading">IAM Permissions</h2>
+          </div>
+          <div class="cb-setup-card-body">
+            <ul class="cb-setup-list" aria-label="IAM permission requirements">
+              <li>Request permissions for <strong>Lambda, ECR, API Gateway,</strong> and <strong>Secrets Manager</strong></li>
+              <li>Work with your CloudBank point of contact to obtain the required roles</li>
+              <li>Follow least-privilege — request only the services your project needs</li>
+              <li>Assign an <strong>execution role</strong> to the Lambda function granting Secrets Manager read access</li>
+            </ul>
+            <div class="cb-setup-note">
+              <p>CloudBank uses AWS Organizations — your account may inherit default permission boundaries</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Credit Usage -->
+        <div class="cb-setup-card">
+          <div class="cb-setup-card-header">
+            <img class="cb-setup-card-icon" src="assets/AWS-cost-explorer.png" alt="" />
+            <h2 class="cb-setup-card-heading">Credit Usage</h2>
+          </div>
+          <div class="cb-setup-card-body">
+            <ul class="cb-setup-list" aria-label="Cost and credit considerations">
+              <li><strong>Lambda:</strong> pay per invocation — typically fractions of a cent per query</li>
+              <li><strong>ECR:</strong> ~$0.10/GB/month for container image storage</li>
+              <li><strong>EC2:</strong> the database instance is the primary ongoing cost — stop it when not in use</li>
+              <li>Monitor spend with <strong>AWS Cost Explorer</strong> and set billing alerts</li>
+            </ul>
+            <div class="cb-setup-note">
+              <p>CloudBank credits cover most research use; consult your allocation before scaling up</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Account Gotchas -->
+        <div class="cb-setup-card">
+          <div class="cb-setup-card-header">
+            <img class="cb-setup-card-icon" src="assets/warning-triangle.svg" alt="" />
+            <h2 class="cb-setup-card-heading">Account Gotchas</h2>
+          </div>
+          <div class="cb-setup-card-body">
+            <ul class="cb-setup-list" aria-label="Common account-specific issues">
+              <li>Lambda and EC2 must be in the <strong>same AWS region</strong></li>
+              <li>Configure <strong>security groups</strong>: Lambda needs outbound access to the database port (5432 for PostgreSQL)</li>
+              <li>CloudBank accounts may have <strong>region restrictions</strong> — confirm with your administrator</li>
+              <li>Container image architecture must match Lambda config (<strong>x86_64</strong> vs arm64)</li>
+            </ul>
+            <div class="cb-setup-note">
+              <p>Test with a minimal query first to validate end-to-end connectivity before building out the full API</p>
+            </div>
           </div>
         </div>
 
