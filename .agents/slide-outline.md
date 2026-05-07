@@ -151,7 +151,7 @@ container image. ECR (Elastic Container Registry) is where AWS stores those
   4. PostgreSQL Database: Running on EC2, credentials in Secrets Manager
 - Key benefit banner: Secure, serverless API without infrastructure management
 
-### 15 — Live Demo
+### 16 — Live Demo
 - Dark purple transition slide with gold accent bar
 - Large centered "DEMO" text (120px, white)
 - Subtitle: "Querying the SnowEx Database" (42px, gold)
@@ -165,7 +165,7 @@ container image. ECR (Elastic Container Registry) is where AWS stores those
   - Narrate cold start if it occurs
   - Total time: ~2-3 minutes
 
-### 16 — When to Use Raw SQL
+### 17 — When to Use Raw SQL
 - Two-column layout: Problem vs Solution
 - Left side (Complex Query Need):
   - Example: "Find average magnaprobe depth within 10m of each snow pit"
@@ -184,16 +184,16 @@ container image. ECR (Elastic Container Registry) is where AWS stores those
 - Key message banner:
   - "Use client.query() for complex queries — when helper methods don't support spatial joins, aggregations, or multi-table operations"
 
-### 17 — What This Pattern Enables
+### 18 — What This Pattern Enables
 - Transferable use cases across disciplines: genomics, climate science, hydrology, remote sensing.
 - "Lambda fills the gap between Jupyter notebook and full cloud deployment."
 
-### 18 — CloudBank-Specific Setup
+### 19 — CloudBank-Specific Setup
 - IAM roles and permissions under CloudBank accounts.
 - Credit usage notes.
 - Account-specific gotchas.
 
-### 19 — Resources & Next Steps
+### 20 — Resources & Next Steps
 - Links: snowexsql, CloudBank docs, AWS Lambda docs, eScience Institute.
 - How to get help: CloudBank support, office hours.
 - Q&A prompt.
