@@ -18,7 +18,7 @@
   "So what exactly lives in this database? We built the SnowEx database using PostgreSQL with the PostGIS spatial extension, which means we can store point locations, run geographic queries, and do spatial joins. The database contains multiple tables — one for snow depth measurements, another for density pits, another for spectral reflectance data — and they're all linked by common keys like site name, date, and geographic coordinates. Each table has its own schema with metadata fields describing the instrument, the observer, and the measurement protocol. The result is a normalized relational structure that allows researchers to query across campaigns, compare sites, and pull just the subset of data they need for their analysis. This is the kind of database that lives on an EC2 instance and needs a clean API layer on top of it, which is exactly what Lambda provides.",
   "Now let's talk about database access. Our first implementation required users to install a command-line client on their local machine and distribute AWS credentials to everyone who needed access. This worked, but it had serious problems. Managing credentials is a security headache — you're handing out keys that, if compromised, could expose your entire database. And it put a burden on users to configure their local environment correctly. What we needed was a way to provide secure, passwordless access without distributing credentials. That's the problem Lambda solves. By putting Lambda in front of the database with API Gateway, users can query through a simple web API without ever touching credentials. The architecture diagram on the right shows how this works — API Gateway handles authentication, Lambda executes the query, and users get their data back without needing direct database access. It's a much cleaner, more secure pattern.",
   "So what exactly is AWS Lambda? Lambda is Amazon's serverless compute service. Now, the term serverless can be misleading — there are still servers involved. What it really means is that you don't have to provision, manage, or pay for servers when they're idle. With traditional EC2 instances, you spin up a virtual machine and it runs continuously whether you're using it or not. With Lambda, you write a function, upload it to AWS, and it only runs when triggered. Each invocation spins up a fresh execution environment, runs your code, and then shuts down. You only pay for the compute time you actually use, measured in milliseconds. For research workflows where you have sporadic queries or bursty workloads, this model can be much more cost-effective than keeping an always-on server running. Lambda was designed for exactly this kind of use case — lightweight, event-driven tasks that don't need persistent infrastructure.",
-  "Lambda really shines in three main scenarios. First, you can use it for data processing pipelines. A researcher uploads a new file to S3 — maybe a satellite image or a batch of sensor data — and that upload event automatically triggers a Lambda function that processes the file, extracts metadata, or kicks off a workflow. You never had to think about scaling or managing servers. Second, Lambda works beautifully as an API layer, which is exactly what we're doing with the SnowEx database. API Gateway receives a query request, hands it to Lambda, Lambda connects to the database, runs the query, and returns the results. It's clean, stateless, and scales automatically. Third, Lambda can act as the glue between services — responding to events from CloudWatch, SNS, EventBridge, or any other AWS service. The common thread across all of these is that they're event-driven, relatively short-running tasks where you don't want the overhead of managing infrastructure. Lambda is perfect for this middle ground between one-off scripts and full application deployments.",
+  "Lambda really shines in three main scenarios. First, you can use it for data processing pipelines. A researcher uploads a new file to S3 — maybe a satellite image or a batch of sensor data — and that upload event automatically triggers a Lambda function that processes the file, extracts metadata, or kicks off a workflow. You never had to think about scaling or managing servers. Second, Lambda works beautifully as an API layer, which is exactly what we're doing with the SnowEx database. API Gateway receives a query request, hands it to Lambda, Lambda connects to the database, runs the query, and returns the results. It's clean, stateless, and scales automatically. Third, Lambda can act as the glue between services — responding to events from CloudWatch, SNS, EventBridge, or any other AWS service. Here's a concrete example close to home: imagine a researcher kicks off a long batch reprocessing job on EC2 to update all the SnowEx pit data. When that job finishes, it publishes a message to an SNS topic. That event automatically triggers a Lambda function, which updates a metadata table in PostgreSQL to mark the new data as available and sends a notification to the team. The researcher never wrote a polling loop. No server stayed awake waiting. Lambda just responded to the event when it arrived. The common thread across all three of these use cases is that they're event-driven, relatively short-running tasks where you don't want the overhead of managing infrastructure. Lambda is perfect for this middle ground between one-off scripts and full application deployments.",
   "Now let's talk about what Lambda is not good for — because understanding the constraints is just as important as understanding the capabilities. Lambda has a hard fifteen-minute execution limit. If your function hasn't finished by then, AWS kills it. That means Lambda is not a replacement for batch compute jobs or HPC workloads. If you're running a multi-hour climate simulation or training a deep learning model, Lambda is the wrong tool. Second, there's cold start latency. When a Lambda function hasn't been invoked recently, AWS has to spin up a fresh execution environment, and that can take anywhere from a few hundred milliseconds to several seconds, especially if you're using container images with large dependencies. For interactive applications where every millisecond counts, that delay can be a problem. Third, packaging scientific Python dependencies is non-trivial. Libraries like NumPy, Pandas, and SciPy are large, and if you go down the rabbit hole of geospatial or machine learning libraries, you quickly hit Lambda's package size limits unless you use container images. And even then, you're dealing with Docker and ECR, which adds complexity. The key point here is that serverless does not mean you can run any arbitrary analysis without thinking about infrastructure. Lambda fills a specific niche — lightweight, event-driven tasks — and if your workload doesn't fit that profile, you need a different tool.",
   "Now I want to show you what it actually looks like to create a Lambda function in the AWS console. I'm going to do this live so you can see the interface and get oriented to how Lambda works. We'll start with the simplest possible example — the hello world function that AWS provides by default. This will give you a sense of the Lambda console layout, how to create a function, and what the execution model looks like. Then we'll talk about why this simple zip file approach doesn't work for scientific Python, and what we need to do instead. Let me switch over to the console and walk through creating a basic function.",
   "So why do we need container images for the SnowEx database? The answer comes down to package size. When you're working with scientific Python, you're not dealing with lightweight libraries. NumPy alone is tens of megabytes. Add Pandas for data manipulation, SQLAlchemy for database connections, GeoAlchemy2 for spatial queries, and you're well over the 50-megabyte zip file limit that Lambda imposes. And that's before you even write your own code. The zip approach that works great for hello world functions simply doesn't scale to real scientific workloads. So what's the alternative? Container images. Instead of zipping up your Python code and dependencies, you write a Dockerfile — the same tool you'd use for any containerized application — install your dependencies normally using pip or conda, build the image, push it to AWS Elastic Container Registry, and point your Lambda function at that image. Lambda pulls the image and runs it just like it would run a zip file, but now you have 10 gigabytes of space instead of 50 megabytes. This isn't a workaround or a hack — it's the modern, recommended way to deploy Lambda functions with heavy dependencies. AWS built this capability specifically for use cases like ours.",
@@ -860,12 +860,18 @@
       gap: 32px;
       padding: 50px 100px 60px 100px;
       background: #ffffff;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
     }
 
     .use-case-panel {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 1400px;
     }
 
     .use-case-title {
@@ -879,13 +885,13 @@
 
     .use-case-flow {
       display: flex;
+      align-self: flex-start;
       align-items: center;
       gap: 16px;
       padding: 20px;
       background: #f8f8f8;
       border: 2px solid #e0e0e0;
       border-radius: 8px;
-      margin: 0 100px;
     }
 
     .flow-box {
@@ -2522,7 +2528,7 @@
     /* Purple top band */
     .architecture-top {
       background: var(--uw-spirit-purple);
-      padding: 56px 100px 52px 100px;
+      padding: 44px 100px 40px 100px;
       position: relative;
     }
     .architecture-top::before {
@@ -2540,7 +2546,7 @@
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--uw-spirit-gold);
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .architecture-title {
@@ -2552,103 +2558,12 @@
       color: #ffffff;
     }
 
-    .architecture-content {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      padding: 30px 60px 50px 60px;
-      background: #ffffff;
-    }
-
-    .architecture-diagram-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex: 0 0 auto;
-    }
-
     .architecture-diagram {
-      width: 1100px;
-      height: auto;
+      width: 90%;
+      height: 90%;
       object-fit: contain;
-      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
-    }
-
-    .architecture-callouts {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-
-    .callout-box {
-      display: flex;
-      gap: 16px;
-      padding: 20px;
-      background: #f8f8f8;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      align-items: flex-start;
-    }
-
-    .callout-number {
-      flex-shrink: 0;
-      width: 48px;
-      height: 48px;
-      background: var(--uw-spirit-gold);
-      color: var(--uw-spirit-purple);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Encode Sans', sans-serif;
-      font-weight: 900;
-      font-size: 26px;
-    }
-
-    .callout-content {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .callout-title {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--uw-spirit-purple);
-      line-height: 1.2;
-      margin: 0;
-    }
-
-    .callout-text {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 20px;
-      font-weight: 400;
-      color: #333333;
-      line-height: 1.4;
-      margin: 0;
-    }
-
-    .architecture-benefit {
-      padding: 20px 28px;
-      background: rgba(75, 46, 131, 0.08);
-      border-left: 4px solid var(--uw-spirit-purple);
-      border-radius: 4px;
-    }
-
-    .architecture-benefit-text {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 22px;
-      font-weight: 400;
-      color: #333333;
-      line-height: 1.4;
-      text-align: center;
-      margin: 0;
-    }
-
-    .architecture-benefit-text strong {
-      font-weight: 700;
-      color: var(--uw-spirit-purple);
+      display: block;
+      margin: auto;
     }
 
     /* ── SLIDE 15: Live Demo Transition ── */
@@ -3508,9 +3423,40 @@
           <p class="use-case-description">Automatically process uploaded files — satellite images, sensor data, research datasets — without managing infrastructure.</p>
         </div>
 
-        <!-- Use Case 2: API Layer -->
+        <!-- Use Case 2: Event-Driven Glue -->
         <div class="use-case-panel">
-          <h2 class="use-case-title">02 · API for Database Queries</h2>
+          <h2 class="use-case-title">02 · Service Integration</h2>
+          <div class="use-case-flow" role="img" aria-label="Flow diagram: Event source triggers Lambda function which performs action">
+            <div class="flow-box">
+              <img class="flow-box-icon" src="assets/event-source-logo.svg" alt="" />
+              <div class="flow-box-text">
+                <div class="flow-box-label">Event Source</div>
+                <div class="flow-box-sub">CloudWatch, SNS</div>
+              </div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box lambda">
+              <img class="flow-box-icon" src="assets/Amazon_Lambda_logo.png" alt="" />
+              <div class="flow-box-text">
+                <div class="flow-box-label">Lambda</div>
+                <div class="flow-box-sub">Respond to event</div>
+              </div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">
+              <img class="flow-box-icon" src="assets/database-icon.svg" alt="" />
+              <div class="flow-box-text">
+                <div class="flow-box-label">Action</div>
+                <div class="flow-box-sub">Notify, log, trigger</div>
+              </div>
+            </div>
+          </div>
+          <p class="use-case-description">Glue between AWS services — respond to events, orchestrate workflows, without persistent infrastructure.</p>
+        </div>
+
+        <!-- Use Case 3: API Layer -->
+        <div class="use-case-panel">
+          <h2 class="use-case-title">03 · API for Database Queries</h2>
           <div class="use-case-flow" role="img" aria-label="Flow diagram: API Gateway receives request, Lambda executes query, returns results from database">
             <div class="flow-box">
               <img class="flow-box-icon large" src="assets/AWS-API-gateway.png" alt="" />
@@ -3538,21 +3484,6 @@
           </div>
           <p class="use-case-description">Clean, stateless API layer — exactly what we're using for SnowEx. Scales automatically with query load.</p>
         </div>
-
-        <!-- Use Case 3: Event-Driven Glue -->
-        <div class="use-case-panel">
-          <h2 class="use-case-title">03 · Service Integration</h2>
-          <div class="use-case-flow" role="img" aria-label="Flow diagram: Event source triggers Lambda function which performs action">
-            <div class="flow-box">
-              <img class="flow-box-icon" src="assets/event-source-logo.svg" alt="" />
-              <div class="flow-box-text">
-                <div class="flow-box-label">Event Source</div>
-                <div class="flow-box-sub">CloudWatch, SNS</div>
-              </div>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-box lambda">
-              <img class="flow-box-icon" src="assets/Amazon_Lambda_logo.png" alt="" />
               <div class="flow-box-text">
                 <div class="flow-box-label">Lambda</div>
                 <div class="flow-box-sub">Respond to event</div>
@@ -3704,7 +3635,7 @@
         </div>
 
         <!-- Deployment flow -->
-        <div class="deploy-flow" role="img" aria-label="Deployment: build locally with Docker, push to ECR, Lambda runs the container">
+        <div class="deploy-flow" role="img" aria-label="Deployment: build locally with Docker, push to ECR (Elastic Container Registry), Lambda runs the container">
           <div class="deploy-step">
             <img src="assets/docker-logo.png" alt="" class="deploy-icon" />
             <div class="deploy-label">Build locally</div>
@@ -3714,7 +3645,7 @@
           <div class="deploy-step">
             <img src="assets/AWS-ECR-logo.png" alt="" class="deploy-icon" />
             <div class="deploy-label">Push to ECR</div>
-            <div class="deploy-cmd">docker push</div>
+            <div class="deploy-cmd">Elastic Container Registry</div>
           </div>
           <div class="deploy-arrow">&#8594;</div>
           <div class="deploy-step">
@@ -3856,7 +3787,7 @@
 
           <div class="annotation-card">
             <p class="annotation-label">03 · Function Code</p>
-            <p class="annotation-text">Copy your Python handler into the Lambda task directory</p>
+            <p class="annotation-text">Copy the snowexsql package into the Lambda task directory, including the handler</p>
           </div>
 
           <div class="annotation-card">
@@ -4054,7 +3985,7 @@
         <div class="lc-boundary" role="separator" aria-label="AWS Boundary">
           <div class="lc-boundary-cross">
             <span class="lc-boundary-cross-glyph">&darr;</span>
-            <span class="lc-boundary-cross-label">HTTPS POST</span>
+            <span class="lc-boundary-cross-label">HTTPS POST to Function URL</span>
           </div>
           <div class="lc-boundary-tag">AWS Boundary</div>
         </div>
@@ -4118,67 +4049,11 @@ LIMIT 500</code></pre>
   <!-- SLIDE 15: Architecture Overview -->
   <section data-label="15 Architecture" aria-label="Slide 15: SnowEx Lambda Architecture Overview">
     <div class="slide-architecture">
-
-      <!-- Top: purple band with title -->
       <div class="architecture-top">
         <p class="architecture-eyebrow">Putting It All Together</p>
         <h1 class="architecture-title">SnowEx Lambda Architecture</h1>
       </div>
-
-      <!-- Content: diagram with callouts -->
-      <div class="architecture-content">
-
-        <!-- Architecture diagram -->
-        <div class="architecture-diagram-container">
-          <img src="assets/AWS-configuration-new.svg" alt="Architecture diagram showing researcher connecting to Lambda function via Function URL, Lambda connecting to PostgreSQL database on EC2, with ECR providing the container image" class="architecture-diagram" />
-        </div>
-
-        <!-- Callouts -->
-        <div class="architecture-callouts">
-
-          <div class="callout-box callout-1">
-            <div class="callout-number">1</div>
-            <div class="callout-content">
-              <h3 class="callout-title">Container Image</h3>
-              <p class="callout-text">Built with Dockerfile, pushed to ECR, includes all scientific Python dependencies</p>
-            </div>
-          </div>
-
-          <div class="callout-box callout-2">
-            <div class="callout-number">2</div>
-            <div class="callout-content">
-              <h3 class="callout-title">Lambda Handler</h3>
-              <p class="callout-text">Python function retrieves credentials from Secrets Manager, executes SQL query</p>
-            </div>
-          </div>
-
-          <div class="callout-box callout-3">
-            <div class="callout-number">3</div>
-            <div class="callout-content">
-              <h3 class="callout-title">Function URL</h3>
-              <p class="callout-text">HTTPS endpoint with AWS IAM authentication — no public access</p>
-            </div>
-          </div>
-
-          <div class="callout-box callout-4">
-            <div class="callout-number">4</div>
-            <div class="callout-content">
-              <h3 class="callout-title">PostgreSQL Database</h3>
-              <p class="callout-text">Running on EC2, credentials managed by Secrets Manager</p>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Key benefit banner -->
-        <div class="architecture-benefit">
-          <p class="architecture-benefit-text">
-            <strong>Result:</strong> Researchers query the database through a secure, serverless API without managing infrastructure or credentials
-          </p>
-        </div>
-
-      </div>
-
+      <img src="assets/AWS-configuration-new.svg" alt="Architecture diagram: End User sends API request through Internet Gateway into a Virtual Private Cloud containing a Private Subnet with the Lambda API Functions, which query a PostgreSQL database and return results" class="architecture-diagram" />
     </div>
   </section>
 
