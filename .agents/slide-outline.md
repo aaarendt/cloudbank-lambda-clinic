@@ -91,14 +91,14 @@ a zip file
 demo during the tutorial
 
 ### 09 - Why we need a container 
-- Zip hits size limit immediately with real scientific Python (geoalchemy2, 
-pandas, numpy).
-- Make a flow graphic showing how to arrive at a Lambda Container image via
- write a Dockerfile, install deps normally, push to ECR, point Lambda at it.
-- text explanation: Docker packages your code and all dependencies into a 
-container image. ECR (Elastic Container Registry) is where AWS stores those
- images.
-- use logos in assets folder for all the named packages in this slide
+- Upper half: problem statement — zip file hits 50MB limit with real scientific Python
+- Lower half: two visual elements replace the old text/flow:
+  1. Container anatomy diagram — dashed border labeled "Container Image" enclosing
+     four ingredient boxes: handler.py (entry point), Dockerfile (build recipe),
+     requirements.txt (dependencies), snowexsql/ (the API code, with SnowExLogo.png)
+  2. Deployment flow strip below: Docker → ECR → Lambda with icons and docker commands
+- The anatomy diagram previews the next three slides (handler, Dockerfile, ECR deploy)
+- Assets used: docker-logo.png, AWS-ECR-logo.png, Amazon_Lambda_logo.png, SnowExLogo.png
 
 ### 10 — The Handler Function
 - Code slide showing the Python handler function (entry point)

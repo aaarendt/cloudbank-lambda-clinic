@@ -1226,166 +1226,147 @@
     .containers-content {
       display: flex;
       flex-direction: column;
-      gap: 36px;
-      padding: 50px 100px;
+      align-items: center;
+      gap: 40px;
+      padding: 48px 100px;
       background: #ffffff;
+      flex: 1;
     }
 
-    /* Problem section: Size limits */
-    .size-problem {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      padding: 28px 32px;
-      background: rgba(255, 82, 82, 0.08);
-      border-left: 4px solid #d32f2f;
-      border-radius: 4px;
-    }
-
-    .size-problem-title {
-      font-family: 'Encode Sans', sans-serif;
-      font-weight: 700;
-      font-size: 26px;
-      color: #d32f2f;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-
-    .size-problem-text {
+    .containers-zip-note {
       font-family: 'Open Sans', sans-serif;
-      font-size: 22px;
+      font-size: 28px;
       font-weight: 400;
       color: #333333;
       line-height: 1.4;
+      text-align: center;
+      padding: 0 40px;
     }
 
-    .library-logos {
+    .containers-zip-note strong {
+      font-weight: 700;
+      color: #d32f2f;
+    }
+
+    .container-anatomy {
+      width: 100%;
+      border: 3px dashed var(--uw-spirit-purple);
+      border-radius: 12px;
+      padding: 24px 48px;
+      position: relative;
+      background: rgba(75, 46, 131, 0.04);
       display: flex;
+      flex-direction: column;
+    }
+
+    .anatomy-boundary-label {
+      position: absolute;
+      top: -20px;
+      left: 48px;
+      background: #ffffff;
+      padding: 4px 20px;
+      font-family: 'Encode Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--uw-spirit-purple);
+    }
+
+    .anatomy-ingredients {
+      display: flex;
+      gap: 32px;
+      align-items: stretch;
+      flex: 1;
+    }
+
+    .ingredient {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 40px;
-      padding: 24px 0;
-    }
-
-    .library-logo {
-      height: 84px;
-      width: auto;
-      object-fit: contain;
-    }
-
-    .size-limit-badge {
-      display: inline-block;
-      background: #d32f2f;
-      color: #ffffff;
-      padding: 8px 20px;
-      border-radius: 4px;
-      font-family: 'Open Sans', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    /* Solution section: Container workflow */
-    .container-solution {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .solution-title {
-      font-family: 'Encode Sans', sans-serif;
-      font-weight: 700;
-      font-size: 28px;
-      color: var(--uw-spirit-purple);
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-
-    .container-explainer {
-      padding: 20px 28px;
-      background: rgba(75, 46, 131, 0.08);
-      border-left: 4px solid var(--uw-spirit-purple);
-      border-radius: 4px;
-    }
-
-    .container-explainer-text {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 22px;
-      font-weight: 400;
-      color: #333333;
-      line-height: 1.5;
-    }
-
-    .container-flow {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 24px;
-      background: #f8f8f8;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      margin: 0 100px;
-    }
-
-    .container-flow-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       gap: 12px;
       padding: 20px 24px;
-      background: #ffffff;
-      border: 2px solid #d0d0d0;
-      border-radius: 6px;
-      flex: 1;
-      min-height: 140px;
-      justify-content: center;
+      border-radius: 8px;
+      text-align: center;
     }
 
-    .container-flow-box.highlight {
-      background: var(--uw-spirit-purple);
-      border-color: var(--uw-spirit-purple);
-    }
+    .handler-ingredient    { background: var(--uw-husky-purple); border: 2px solid var(--uw-spirit-purple); }
+    .dockerfile-ingredient { background: #f0f8ff; border: 2px solid #2496ed; }
+    .requirements-ingredient { background: #f5f5f5; border: 2px solid #9e9e9e; }
+    .snowexsql-ingredient  { background: #f0f7ff; border: 2px solid var(--uw-spirit-purple); }
 
-    .container-flow-icon {
-      width: 64px;
-      height: 64px;
+    .ingredient-logo {
+      width: 80px;
+      height: 80px;
       object-fit: contain;
     }
 
-    .container-flow-label {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 22px;
-      font-weight: 600;
+    .ingredient-filename {
+      font-family: 'Courier New', monospace;
+      font-size: 28px;
+      font-weight: 700;
       color: #333333;
-      text-align: center;
-      line-height: 1.3;
     }
 
-    .container-flow-box.highlight .container-flow-label {
-      color: #ffffff;
-    }
+    .handler-ingredient .ingredient-filename { color: var(--uw-spirit-gold); }
 
-    .container-flow-sub {
+    .ingredient-role {
       font-family: 'Open Sans', sans-serif;
-      font-size: 18px;
+      font-size: 24px;
       font-weight: 400;
       color: #666666;
-      text-align: center;
-      line-height: 1.3;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
-    .container-flow-box.highlight .container-flow-sub {
-      color: var(--uw-husky-gold-web);
+    .handler-ingredient .ingredient-role { color: var(--uw-husky-gold-web); }
+
+    .deploy-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      padding: 28px 48px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      width: 100%;
     }
 
-    .solution-note {
+    .deploy-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      max-width: 280px;
+    }
+
+    .deploy-icon {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+    }
+
+    .deploy-label {
       font-family: 'Open Sans', sans-serif;
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 600;
+      color: #333333;
+    }
+
+    .deploy-cmd {
+      font-family: 'Courier New', monospace;
+      font-size: 24px;
+      color: #666666;
+    }
+
+    .deploy-arrow {
+      font-size: 48px;
       color: var(--uw-spirit-purple);
-      line-height: 1.4;
-      text-align: center;
-      margin-top: 12px;
+      font-weight: bold;
+      flex-shrink: 0;
     }
 
     /* ── SLIDE 10: The Dockerfile ── */
@@ -3686,56 +3667,60 @@
         <h1 class="containers-title">Why Container Images?</h1>
       </div>
 
-      <!-- Content: problem and solution -->
+      <!-- Content: container anatomy diagram + deploy flow -->
       <div class="containers-content">
 
-        <!-- Problem: Size limits -->
-        <div class="size-problem">
-          <h2 class="size-problem-title">The Problem: Zip File Size Limits</h2>
-          <p class="size-problem-text">
-            Scientific Python dependencies quickly exceed Lambda's <span class="size-limit-badge">50MB zip limit</span>
-          </p>
-          <div class="library-logos" aria-label="Scientific Python libraries: NumPy, Pandas, GeoAlchemy2">
-            <img class="library-logo" src="assets/NumPy_logo_2020.png" alt="NumPy" />
-            <span style="font-size: 48px; color: #d32f2f; font-weight: bold;">+</span>
-            <img class="library-logo" src="assets/Pandas_logo.png" alt="Pandas" />
-            <span style="font-size: 48px; color: #d32f2f; font-weight: bold;">+</span>
-            <img class="library-logo" src="assets/geoalchemy-logo.png" alt="GeoAlchemy2" />
-            <span style="font-size: 48px; color: #d32f2f; font-weight: bold;">=</span>
-            <span style="font-family: 'Encode Sans', sans-serif; font-size: 36px; font-weight: 900; color: #d32f2f;">&gt; 50MB</span>
+        <!-- Zip size problem sentence -->
+        <p class="containers-zip-note">Scientific Python dependencies (<strong>NumPy, Pandas, GeoAlchemy2</strong>) immediately exceed Lambda's <strong>50MB zip limit</strong> — a container image raises that ceiling to <strong>10GB</strong>.</p>
+
+        <!-- Container anatomy diagram -->
+        <div class="container-anatomy" role="img" aria-label="A container image holds four ingredients: handler.py entry point, Dockerfile build recipe, requirements.txt dependencies, and the snowexsql package">
+          <span class="anatomy-boundary-label">Container Image</span>
+          <div class="anatomy-ingredients">
+
+            <div class="ingredient handler-ingredient">
+              <div class="ingredient-filename">handler.py</div>
+              <div class="ingredient-role">entry point</div>
+            </div>
+
+            <div class="ingredient dockerfile-ingredient">
+              <img src="assets/docker-logo.png" alt="" class="ingredient-logo" />
+              <div class="ingredient-filename">Dockerfile</div>
+              <div class="ingredient-role">build recipe</div>
+            </div>
+
+            <div class="ingredient requirements-ingredient">
+              <div class="ingredient-filename">requirements.txt</div>
+              <div class="ingredient-role">dependencies</div>
+            </div>
+
+            <div class="ingredient snowexsql-ingredient">
+              <img src="assets/SnowEx-logo.png" alt="SnowEx project" class="ingredient-logo" />
+              <div class="ingredient-filename">snowexsql/</div>
+              <div class="ingredient-role">the API code</div>
+            </div>
+
           </div>
         </div>
 
-        <!-- Solution: Container workflow -->
-        <div class="container-solution">
-          <h2 class="solution-title">The Solution: Container Images (10GB limit)</h2>
-          <div class="container-explainer">
-            <p class="container-explainer-text">Docker packages your code and all dependencies into a container image. ECR (Elastic Container Registry) is where AWS stores those images.</p>
+        <!-- Deployment flow -->
+        <div class="deploy-flow" role="img" aria-label="Deployment: build locally with Docker, push to ECR, Lambda runs the container">
+          <div class="deploy-step">
+            <img src="assets/docker-logo.png" alt="" class="deploy-icon" />
+            <div class="deploy-label">Build locally</div>
+            <div class="deploy-cmd">docker build</div>
           </div>
-          <div class="container-flow" role="img" aria-label="Container workflow: Write Dockerfile, build image, push to ECR, deploy to Lambda">
-            <div class="container-flow-box">
-              <img class="container-flow-icon" src="assets/docker-logo.png" alt="" />
-              <div class="container-flow-label">Write Dockerfile</div>
-              <div class="container-flow-sub">Install deps with pip</div>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="container-flow-box">
-              <img class="container-flow-icon" src="assets/docker-logo.png" alt="" />
-              <div class="container-flow-label">Build Image</div>
-              <div class="container-flow-sub">docker build</div>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="container-flow-box">
-              <img class="container-flow-icon" src="assets/AWS-ECR-logo.png" alt="" />
-              <div class="container-flow-label">Push to ECR</div>
-              <div class="container-flow-sub">docker push</div>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="container-flow-box highlight">
-              <img class="container-flow-icon" src="assets/Amazon_Lambda_logo.png" alt="" />
-              <div class="container-flow-label">Deploy Lambda</div>
-              <div class="container-flow-sub">Point at ECR image</div>
-            </div>
+          <div class="deploy-arrow">&#8594;</div>
+          <div class="deploy-step">
+            <img src="assets/AWS-ECR-logo.png" alt="" class="deploy-icon" />
+            <div class="deploy-label">Push to ECR</div>
+            <div class="deploy-cmd">docker push</div>
+          </div>
+          <div class="deploy-arrow">&#8594;</div>
+          <div class="deploy-step">
+            <img src="assets/Amazon_Lambda_logo.png" alt="" class="deploy-icon" />
+            <div class="deploy-label">Lambda runs it</div>
+            <div class="deploy-cmd">on every invocation</div>
           </div>
         </div>
 
